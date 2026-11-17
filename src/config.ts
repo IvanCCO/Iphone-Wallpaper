@@ -93,10 +93,12 @@ const fileSchema = z.strictObject({
   dateFilter: z.enum(["any", "empty"]).default("any"),
   /** Propriedade usada para ordenar a consulta (ascendente). Padrão: a de vencimento. */
   sortBy: z.string().min(1).optional(),
-  /** Progresso de vida (gráfico ao lado do título). A data de nascimento vem de BIRTH_DATE (variável de ambiente). */
+  /** Progresso de vida (gráfico ao lado do título). Sem `birthDate` o gráfico não aparece. */
   lifeProgress: z
     .strictObject({
       enabled: z.boolean().default(true),
+      /** Data de nascimento AAAA-MM-DD. ATENÇÃO: dado pessoal; se o repositório for público, ela fica pública. */
+      birthDate: z.string().refine(isValidCivilDate, "use uma data válida AAAA-MM-DD").optional(),
       lifespanYears: z.number().min(1).max(130).default(84),
       style: z.enum(["pie", "bar"]).default("bar"),
     })
@@ -199,20 +201,18 @@ export function loadImageDefaults(file: FileConfig): ImageDefaults {
 // ---------- Progresso de vida ----------
 
 export interface LifeConfig {
-  /** Data de nascimento YYYY-MM-DD (dado pessoal: só por variável de ambiente, nunca no repositório). */
   birthDate: string;
   lifespanYears: number;
   style: "pie" | "bar";
 }
 
 /**
- * Desligado (undefined) se `lifeProgress.enabled` é false ou se BIRTH_DATE não existe/é inválida:
- * o wallpaper continua funcionando sem o gráfico. O motivo vai em `reason` para o log.
+ * Desligado (config ausente) se `lifeProgress.enabled` é false ou não há `birthDate`: o wallpaper continua
+ * funcionando sem o gráfico. O motivo vai em `reason` para o log (que nunca registra a data).
  */
-export function loadLifeConfig(env: Env, file: FileConfig): { config?: LifeConfig; reason?: string } {
-  if (!file.lifeProgress.enabled) return { reason: "disabled" };
-  const birth = env.BIRTH_DATE?.trim();
-  if (!birth) return { reason: "no_birth_date" };
-  if (!isValidCivilDate(birth)) return { reason: "invalid_birth_date" };
-  return { config: { birthDate: birth, lifespanYears: file.lifeProgress.lifespanYears, style: file.lifeProgress.style } };
+export function loadLifeConfig(file: FileConfig): { config?: LifeConfig; reason?: string } {
+  const l = file.lifeProgress;
+  if (!l.enabled) return { reason: "disabled" };
+  if (!l.birthDate) return { reason: "no_birth_date" };
+  return { config: { birthDate: l.birthDate, lifespanYears: l.lifespanYears, style: l.style } };
 }

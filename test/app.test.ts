@@ -133,12 +133,13 @@ describe("/notion/tasks.png", () => {
 });
 
 describe("gráfico de vida na rota", () => {
-  const withBirth = { ...TEST_ENV, BIRTH_DATE: "2000-03-09" };
-  const get = async (env: Record<string, string>, q = "") => {
+  // datas FICTÍCIAS
+  const withBirth = { lifeProgress: { birthDate: "2000-03-09" } };
+  const get = async (config: unknown, q = "") => {
     const logs: Record<string, unknown>[] = [];
     const app = createApp({
-      env,
-      config: {},
+      env: TEST_ENV,
+      config,
       taskSource: { fetchTasks: async () => sampleTasks },
       now: () => NOW,
       logger: { info: (_e, f) => void logs.push(f ?? {}), error() {} },
@@ -147,7 +148,7 @@ describe("gráfico de vida na rota", () => {
     return { res, log: logs.find((l) => l.path === "/notion/tasks.png") };
   };
 
-  it("com BIRTH_DATE desenha o gráfico (bar por padrão) e loga só o estilo, nunca a data", async () => {
+  it("com birthDate desenha o gráfico (bar por padrão) e loga só o estilo, nunca a data", async () => {
     const { res, log } = await get(withBirth);
     expect(res.status).toBe(200);
     expect(log?.life).toBe("bar");
@@ -159,15 +160,14 @@ describe("gráfico de vida na rota", () => {
     expect((await get(withBirth, "&life=0")).log?.life).toBe("param_off");
   });
 
-  it("sem BIRTH_DATE ou com valor inválido o wallpaper continua funcionando sem o gráfico", async () => {
-    const a = await get(TEST_ENV);
+  it("sem birthDate ou enabled=false o wallpaper continua funcionando sem o gráfico", async () => {
+    const a = await get({});
     expect([a.res.status, a.log?.life]).toEqual([200, "no_birth_date"]);
-    const b = await get({ ...TEST_ENV, BIRTH_DATE: "lixo" });
-    expect([b.res.status, b.log?.life]).toEqual([200, "invalid_birth_date"]);
+    const b = await get({ lifeProgress: { birthDate: "2000-03-09", enabled: false } });
+    expect([b.res.status, b.log?.life]).toEqual([200, "disabled"]);
   });
 
   it("?lifeStyle inválido → 400", async () => {
     expect((await get(withBirth, "&lifeStyle=donut")).res.status).toBe(400);
   });
 });
-

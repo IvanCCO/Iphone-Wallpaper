@@ -41,7 +41,7 @@ export function createApp(opts: AppOptions = {}): Hono<AppEnv> {
   const getFile = lazy(() => parseFileConfig(opts.config ?? rawFileConfig));
   const getNotion = lazy(() => loadNotionConfig(env, getFile()));
   const getImageDefaults = lazy(() => loadImageDefaults(getFile()));
-  const getLife = lazy(() => loadLifeConfig(env, getFile()));
+  const getLife = lazy(() => loadLifeConfig(getFile()));
 
   const app = new Hono<AppEnv>();
 

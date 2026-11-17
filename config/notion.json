@@ -18,7 +18,7 @@
   },
   "dateFilter": "empty",
   "sortBy": "Tags",
-  "lifeProgress": { "enabled": true, "lifespanYears": 84, "style": "bar" },
+  "lifeProgress": { "enabled": true, "birthDate": "2004-03-09", "lifespanYears": 84, "style": "bar" },
   "cacheTtlSeconds": 120,
   "image": {
     "timezone": "America/Sao_Paulo",

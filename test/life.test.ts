@@ -45,13 +45,18 @@ describe("lifeProgress", () => {
 });
 
 describe("loadLifeConfig", () => {
-  const file = parseFileConfig({});
-  it("ligado com BIRTH_DATE válida", () => {
-    expect(loadLifeConfig({ BIRTH_DATE: BIRTH }, file).config).toEqual({ birthDate: BIRTH, lifespanYears: 84, style: "bar" });
+  it("ligado com birthDate válida no JSON", () => {
+    const file = parseFileConfig({ lifeProgress: { birthDate: BIRTH } });
+    expect(loadLifeConfig(file).config).toEqual({ birthDate: BIRTH, lifespanYears: 84, style: "bar" });
   });
-  it("desligado sem data, com data inválida ou enabled=false (nunca derruba o wallpaper)", () => {
-    expect(loadLifeConfig({}, file)).toEqual({ reason: "no_birth_date" });
-    expect(loadLifeConfig({ BIRTH_DATE: "ontem" }, file)).toEqual({ reason: "invalid_birth_date" });
-    expect(loadLifeConfig({ BIRTH_DATE: BIRTH }, parseFileConfig({ lifeProgress: { enabled: false } }))).toEqual({ reason: "disabled" });
+
+  it("desligado sem data ou com enabled=false (nunca derruba o wallpaper)", () => {
+    expect(loadLifeConfig(parseFileConfig({}))).toEqual({ reason: "no_birth_date" });
+    expect(loadLifeConfig(parseFileConfig({ lifeProgress: { birthDate: BIRTH, enabled: false } }))).toEqual({ reason: "disabled" });
+  });
+
+  it("data inválida no JSON é erro de configuração claro", () => {
+    expect(() => parseFileConfig({ lifeProgress: { birthDate: "ontem" } })).toThrow(/lifeProgress\.birthDate/);
+    expect(() => parseFileConfig({ lifeProgress: { birthDate: "2000-02-30" } })).toThrow(/birthDate/);
   });
 });

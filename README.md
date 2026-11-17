@@ -52,7 +52,7 @@ Gere o `API_TOKEN` com `openssl rand -hex 32`.
 
 ## Configuração
 
-Variáveis de ambiente (no `.env` local e na Vercel): `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID` e, opcional, `BIRTH_DATE`.
+Só **3 variáveis de ambiente** (segredos), no `.env` local e na Vercel: `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID`.
 Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O arquivo é validado ao iniciar; chaves desconhecidas dão erro (pega typos), e todos os campos são opcionais.
 
 ```jsonc
@@ -65,7 +65,7 @@ Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O a
   },
   "dateFilter": "empty",   // "empty" = só tarefas sem data; "any" = todas
   "sortBy": "Tags",        // ordena a consulta por esta propriedade
-  "lifeProgress": { "enabled": true, "lifespanYears": 84, "style": "bar" },  // style: "bar" | "pie"
+  "lifeProgress": { "enabled": true, "birthDate": "AAAA-MM-DD", "lifespanYears": 84, "style": "bar" },  // style: "bar" | "pie"
   "cacheTtlSeconds": 120,
   "image": { "timezone": "America/Sao_Paulo", "safeTop": 0.30, "safeBottom": 0.735, "marginX": 0.125, "scale": 2 }
 }
@@ -153,7 +153,7 @@ Para exigir token no grupo, reutilize `requireToken` de `src/lib/auth.ts`.
 
 Ao lado direito de "Tasks" aparece quanto da vida já passou: do nascimento até o aniversário de `lifeProgress.lifespanYears` anos (padrão 84; o dia exato da morte é desconhecido). O padrão é `bar`: barra roxa sobre trilho neutro com o `%` e uma caveira desenhada em vetor. A alternativa `pie` é uma rosca com o `%` dentro. O número usa duas casas (`22.33%`), é recalculado a cada requisição (dias civis no fuso configurado + fração do dia) e muda cerca de a cada 3 dias.
 
-A **data de nascimento é dado pessoal**: vem só da variável `BIRTH_DATE` (`AAAA-MM-DD`), nunca do JSON (o repositório é público). O `pnpm verify` bloqueia o push se o valor aparecer em algum arquivo versionado. Sem `BIRTH_DATE` (ou inválida) o gráfico simplesmente não aparece e o wallpaper segue funcionando; o log registra apenas o estilo ou o motivo, nunca a data.
+A data fica em `lifeProgress.birthDate` (`AAAA-MM-DD`) no `config/notion.json`. **Atenção: é dado pessoal e o arquivo é versionado; se o repositório for público, a data de nascimento fica pública** (e no histórico do git, mesmo se apagada depois). Mantenha o repositório privado ou aceite essa exposição. Sem `birthDate` (ou com `enabled: false`) o gráfico não aparece e o wallpaper segue funcionando; data inválida é erro claro de configuração. O log registra apenas o estilo ou o motivo, nunca a data. Os testes usam só datas fictícias.
 
 ## Simulador da Tela de Bloqueio (sem deploy)
 
@@ -164,7 +164,7 @@ pnpm simulate                      # dados fictícios, sem Notion  -> out/simula
 pnpm simulate --live               # tarefas reais do Notion (usa o .env)
 pnpm simulate --safeTop=0.28 --marginX=0.13 --zoom=1.14 --theme=light --guides
 pnpm simulate --no-system          # só o papel de parede com o zoom, sem relógio/widgets
-pnpm simulate --life=bar --birth=AAAA-03-09   # estilo do gráfico de vida e data (sem --birth usa BIRTH_DATE do .env ou uma data fictícia)
+pnpm simulate --life=pie --birth=AAAA-MM-DD   # estilo do gráfico de vida e data (sem --birth usa o config/notion.json)
 ```
 
 Gera `out/simulator.png` (tela simulada) e `out/wallpaper.png` (a imagem exata que o endpoint devolveria) e imprime um relatório com a faixa ocupada (% da altura) e avisos se o conteúdo invadir o relógio, os widgets ou encostar na borda.

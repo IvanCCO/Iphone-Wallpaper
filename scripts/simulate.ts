@@ -5,7 +5,7 @@
 //   pnpm simulate --zoom=1.14     zoom que o iOS aplica ao papel de parede (calibrado no print do iPhone 16)
 //   pnpm simulate --safeTop=0.28 --safeBottom=0.74 --marginX=0.13 --theme=light --guides
 //   pnpm simulate --life=bar      gráfico de vida em barra (padrão: o de config/notion.json; --life=off desliga)
-//   pnpm simulate --birth=AAAA-03-09   data de nascimento (padrão: BIRTH_DATE do .env; sem ela usa uma data FICTÍCIA)
+//   pnpm simulate --birth=AAAA-MM-DD   data de nascimento (padrão: lifeProgress.birthDate do config/notion.json)
 //   pnpm simulate --no-system     mostra só o papel de parede (com o zoom), sem relógio/widgets
 //
 // Saídas: out/simulator.png (tela simulada) e out/wallpaper.png (a imagem exata que o endpoint devolveria).
@@ -61,8 +61,8 @@ const selection = selectTasks(tasks, { view: "pending", now, tz });
 const lifeArg = args.get("life");
 const birthArg = args.get("birth");
 if (birthArg && !isValidCivilDate(birthArg)) throw new Error("--birth deve ser uma data válida AAAA-MM-DD");
-const usingFakeBirth = !birthArg && !process.env.BIRTH_DATE;
-const lifeLoaded = loadLifeConfig({ BIRTH_DATE: birthArg ?? process.env.BIRTH_DATE ?? "2000-03-09" }, file);
+const lifeFile = birthArg ? { ...file, lifeProgress: { ...file.lifeProgress, birthDate: birthArg } } : file;
+const lifeLoaded = loadLifeConfig(lifeFile);
 let life: { fraction: number; style: "pie" | "bar" } | undefined;
 if (lifeArg !== "off" && lifeLoaded.config) {
   life = {
@@ -139,7 +139,8 @@ const CLOCK_BOTTOM = 0.25; // do print: fim do relógio
 const WIDGETS_TOP = 0.79; // do print: início dos widgets
 const used = layout.rowsShown;
 console.log(`Fonte das tarefas: ${args.has("live") ? "Notion (ao vivo)" : "dados fictícios"} | ${selection.counts.total} tasks, ${used} visíveis${layout.rowsHidden ? `, +${layout.rowsHidden} ocultas` : ""}`);
-if (life) console.log(`Vida: ${formatPercent(life.fraction)}% (${life.style})${usingFakeBirth ? " | data de nascimento FICTÍCIA: use --birth=AAAA-MM-DD ou BIRTH_DATE no .env" : ""}`);
+if (life) console.log(`Vida: ${formatPercent(life.fraction)}% (${life.style})`);
+else console.log(`Vida: sem gráfico (${lifeArg === "off" ? "--life=off" : lifeLoaded.reason})`);
 console.log(`Zoom do iOS: ${zoom} | imagem ${W * scale}×${H * scale}`);
 console.log(`Conteúdo na tela: ${(cTop * 100).toFixed(1)}% → ${(cBottom * 100).toFixed(1)}% da altura | margem esquerda ${left.toFixed(1)}% da largura`);
 if (left < 4) console.log("⚠ margem lateral pequena: o texto pode encostar na borda (aumente marginX).");
