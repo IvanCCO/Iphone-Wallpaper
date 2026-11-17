@@ -23,7 +23,7 @@
     "enabled": true,
     "label": "Brio",
     "properties": { "title": "Name", "status": "status", "assignee": "Atribuído para", "type": "tipo", "subItem": "Sub-item" },
-    "statuses": ["Para puxar"],
+    "statuses": ["Para puxar", "In progress"],
     "assignees": ["Ivan Freire"],
     "excludeTypes": ["epico"],
     "onlyWithoutSubItems": true,
