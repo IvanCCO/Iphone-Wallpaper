@@ -123,7 +123,7 @@ await step("runtime estilo Vercel (compila arquivo a arquivo e carrega no Node E
       const { selectTasks } = await import(${JSON.stringify("./" + join(dir, "src", "domain", "tasks.js"))});
       const now = new Date();
       const selection = selectTasks([{ id: "1", title: "Teste", done: false, priority: "none" }], { view: "pending", now, tz: "UTC" });
-      const { png } = await renderTasksPng({ selection, width: 390, height: 844, theme: "dark", tz: "UTC", now, fetchedAt: now, limit: 8, safeTop: 0.4, safeBottom: 0.84, guides: false });
+      const { png } = await renderTasksPng({ selection, width: 390, height: 844, theme: "dark", tz: "UTC", now, fetchedAt: now, limit: 8, safeTop: 0.30, safeBottom: 0.735, marginX: 0.125, guides: false });
       if (png.length < 500) throw new Error("PNG vazio");
     `;
     run("node", ["--input-type=module", "-e", probe]);

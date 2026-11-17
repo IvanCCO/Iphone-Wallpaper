@@ -14,10 +14,13 @@ export interface TaskImageParams {
   tz: string;
   safeTop: number;
   safeBottom: number;
+  marginX: number;
+  scale: number;
   guides: boolean;
 }
 
-const MAX_PIXELS = 8_000_000;
+/** Limite de pixels da imagem final (width × height × scale²). */
+const MAX_PIXELS = 20_000_000;
 const PRIORITIES = ["high", "medium", "low", "none"] as const;
 
 const isValidTz = (tz: string) => {
@@ -43,8 +46,10 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     limit: z.coerce.number().int().min(1).max(12).default(8),
     theme: z.enum(["dark", "light"]).default("dark"),
     tz: z.string().max(64).default(d.tz).refine(isValidTz, "fuso horário inválido"),
-    safeTop: z.coerce.number().min(0.2).max(0.6).default(d.safeTop),
-    safeBottom: z.coerce.number().min(0.7).max(0.95).default(d.safeBottom),
+    safeTop: z.coerce.number().min(0.1).max(0.6).default(d.safeTop),
+    safeBottom: z.coerce.number().min(0.5).max(0.95).default(d.safeBottom),
+    marginX: z.coerce.number().min(0.03).max(0.3).default(d.marginX),
+    scale: z.coerce.number().min(1).max(3).default(d.scale),
     guides: z.enum(["0", "1"]).default("0"),
   });
 
@@ -54,7 +59,7 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     throw badParams(`Parâmetros inválidos: ${fields.join(", ")}`);
   }
   const p = parsed.data;
-  if (p.width * p.height > MAX_PIXELS) throw badParams("Parâmetros inválidos: width×height excede 8 megapixels");
+  if (p.width * p.height * p.scale * p.scale > MAX_PIXELS) throw badParams("Parâmetros inválidos: width×height×scale² excede 20 megapixels");
   if (p.safeBottom - p.safeTop < 0.2) throw badParams("Parâmetros inválidos: safeTop/safeBottom");
 
   return {
@@ -67,6 +72,8 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     tz: p.tz,
     safeTop: p.safeTop,
     safeBottom: p.safeBottom,
+    marginX: p.marginX,
+    scale: p.scale,
     guides: p.guides === "1",
   };
 }

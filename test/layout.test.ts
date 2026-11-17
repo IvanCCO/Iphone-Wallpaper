@@ -3,7 +3,7 @@ import { selectTasks } from "../src/domain/tasks.js";
 import { buildLayout, estimateLines } from "../src/render/layout.js";
 import { NOW, sampleTasks, TZ } from "./fixtures.js";
 
-const base = { width: 1179, height: 2556, theme: "dark" as const, tz: TZ, now: NOW, fetchedAt: NOW, limit: 8, safeTop: 0.4, safeBottom: 0.84, guides: false };
+const base = { width: 1179, height: 2556, theme: "dark" as const, tz: TZ, now: NOW, fetchedAt: NOW, limit: 8, safeTop: 0.30, safeBottom: 0.735, marginX: 0.125, guides: false };
 
 describe("buildLayout", () => {
   it("respeita limit e reporta ocultas", () => {
@@ -16,8 +16,10 @@ describe("buildLayout", () => {
   it("conteúdo dentro da zona segura", () => {
     const sel = selectTasks(sampleTasks, { view: "pending", now: NOW, tz: TZ });
     const r = buildLayout({ ...base, selection: sel });
-    expect(r.contentBox.top).toBe(Math.round(2556 * 0.4));
-    expect(r.contentBox.bottom).toBe(Math.round(2556 * 0.84));
+    expect(r.contentBox.top).toBe(Math.round(2556 * 0.30));
+    expect(r.contentBox.bottom).toBe(Math.round(2556 * 0.735));
+    expect(r.contentBox.left).toBe(Math.round(1179 * 0.125));
+    expect(r.contentBox.right).toBe(1179 - Math.round(1179 * 0.125));
   });
 
   it("estado vazio não quebra", () => {
@@ -40,5 +42,27 @@ describe("agrupamento por status", () => {
     expect(text.indexOf("À Fazer")).toBeLessThan(text.indexOf("Fazendo"));
     expect(text).toContain("À Fazer  ·  2");
     expect(r.rowsShown).toBe(3);
+  });
+});
+
+describe("cabeçalho simples", () => {
+  const mk = (id: string) => ({ id, title: id, done: false, priority: "none" as const, status: "À Fazer", statusRank: 0 });
+  const render = (n: number) => {
+    const sel = selectTasks(Array.from({ length: n }, (_, i) => mk(`t${i}`)), { view: "pending", now: NOW, tz: TZ });
+    return JSON.stringify(buildLayout({ ...base, selection: sel }).root);
+  };
+
+  it('título "Tasks" e subtítulo "Atualizado em dd/mm hh:mm · N tasks"', () => {
+    const text = render(4);
+    expect(text).toContain('"Tasks"');
+    expect(text).toMatch(/Atualizado em 16\/11 12:00 · 4 tasks/);
+    expect(render(1)).toMatch(/· 1 task"/);
+  });
+
+  it("sem rodapé, sem data por extenso e sem cabeçalho de seção quando há um só status", () => {
+    const text = render(3);
+    expect(text).not.toContain("pendentes");
+    expect(text).not.toContain("Segunda-feira");
+    expect(text).not.toContain("À Fazer  ·");
   });
 });

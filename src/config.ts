@@ -97,10 +97,13 @@ const fileSchema = z.strictObject({
   image: z
     .strictObject({
       timezone: z.string().min(1).default("America/Sao_Paulo"),
-      /** Fração da altura onde o conteúdo começa (abaixo do relógio/widgets). */
-      safeTop: z.number().min(0.2).max(0.6).default(0.4),
-      /** Fração da altura onde termina (acima da lanterna/câmera). */
-      safeBottom: z.number().min(0.7).max(0.95).default(0.84),
+      /** Faixa vertical (fração da altura da imagem) onde o conteúdo é desenhado. */
+      safeTop: z.number().min(0.1).max(0.6).default(0.30),
+      safeBottom: z.number().min(0.5).max(0.95).default(0.735),
+      /** Margem lateral (fração da largura) de cada lado. */
+      marginX: z.number().min(0.03).max(0.3).default(0.125),
+      /** Fator de resolução: 2 gera 2358×5112 (nítido mesmo com o zoom do iOS). */
+      scale: z.number().min(1).max(3).default(2),
     })
     .prefault({}),
 });
@@ -176,8 +179,10 @@ export interface ImageDefaults {
   tz: string;
   safeTop: number;
   safeBottom: number;
+  marginX: number;
+  scale: number;
 }
 
 export function loadImageDefaults(file: FileConfig): ImageDefaults {
-  return { tz: file.image.timezone, safeTop: file.image.safeTop, safeBottom: file.image.safeBottom };
+  return { tz: file.image.timezone, safeTop: file.image.safeTop, safeBottom: file.image.safeBottom, marginX: file.image.marginX, scale: file.image.scale };
 }

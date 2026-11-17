@@ -23,11 +23,16 @@ export interface RenderedImage {
 }
 
 /** Layout (Satori) → SVG → PNG (resvg). O texto vira path, então resvg não precisa de fontes. */
-export async function renderTasksPng(input: LayoutInput): Promise<RenderedImage> {
+export interface RenderInput extends LayoutInput {
+  /** Fator de resolução da saída (o layout é desenhado em width×height e ampliado como vetor). Padrão 1. */
+  scale?: number;
+}
+
+export async function renderTasksPng(input: RenderInput): Promise<RenderedImage> {
   const layout = buildLayout(input);
   const svg = await satori(layout.root as never, { width: input.width, height: input.height, fonts: getFonts() });
   const png = new Resvg(svg, {
-    fitTo: { mode: "original" },
+    fitTo: input.scale && input.scale !== 1 ? { mode: "zoom", value: input.scale } : { mode: "original" },
     font: { loadSystemFonts: false },
   })
     .render()

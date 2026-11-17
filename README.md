@@ -21,10 +21,12 @@ Autenticação: `Authorization: Bearer <API_TOKEN>` (preferido) ou `?key=<API_TO
 | `view` | `today` | `today` (atrasadas + hoje), `pending` (+ próximas + sem data), `all` (+ concluídas hoje) |
 | `priority` | todas | `high,medium,low,none` (lista) |
 | `limit` | `8` | 1–12 linhas |
+| `scale` | `2` | 1–3; resolução da saída (`2` → 2358×5112, nítido mesmo com o zoom do iOS) |
 | `theme` | `dark` | `dark`, `light` |
-| `width` / `height` | `1179` / `2556` | 320–1500 / 640–3200 |
+| `width` / `height` | `1179` / `2556` | 320–1500 / 640–3200 (tamanho lógico do layout) |
 | `tz` | `America/Sao_Paulo` | fuso IANA |
-| `safeTop` / `safeBottom` | `0.4` / `0.84` | fração da altura onde o conteúdo começa/termina |
+| `safeTop` / `safeBottom` | `0.30` / `0.735` | faixa vertical (fração da altura) onde o conteúdo é desenhado |
+| `marginX` | `0.125` | margem lateral de cada lado (fração da largura) |
 | `guides` | `0` | `1` desenha as zonas do sistema (calibração) |
 
 Erros são JSON `{ error: { code, message }, requestId }` e nunca contêm títulos de tarefas. Parâmetro inválido → 400, sem token → 401, falha do Notion → 502/503/504.
@@ -62,7 +64,7 @@ Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O a
   "dateFilter": "empty",   // "empty" = só tarefas sem data; "any" = todas
   "sortBy": "Tags",        // ordena a consulta por esta propriedade
   "cacheTtlSeconds": 120,
-  "image": { "timezone": "America/Sao_Paulo", "safeTop": 0.4, "safeBottom": 0.84 }
+  "image": { "timezone": "America/Sao_Paulo", "safeTop": 0.30, "safeBottom": 0.735, "marginX": 0.125, "scale": 2 }
 }
 ```
 
@@ -95,8 +97,8 @@ O app é detectado pelo zero-config do Hono: `src/index.ts` exporta `default` o 
    (ou método GET com cabeçalho `Authorization: Bearer <API_TOKEN>`).
 2. **Definir imagem do papel de parede** → Tela de Bloqueio, **desligue "Mostrar visualização"/recorte** para não cortar.
 3. Automação: *Hora do dia* (ex.: a cada hora) ou ao desbloquear/abrir o app.
-4. Calibração: abra `...&guides=1`, veja onde relógio/widgets/lanterna caem e ajuste `safeTop`/`safeBottom`.
-   O padrão (`0.4`–`0.84`) assume relógio grande + widgets; no iOS 26 o relógio pode ser mais alto.
+4. Calibração: o iOS amplia o papel de parede em ~14% (centralizado) e corta as bordas; os padrões já consideram isso
+   (conteúdo entre 30% e 73,5% da altura, margem de 12,5%). Abra `...&guides=1` para ver as zonas e ajuste `safeTop`/`safeBottom`/`marginX`.
 
 ### Entrada na Vercel (importante)
 

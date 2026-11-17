@@ -58,6 +58,8 @@ export function notionRoutes(deps: NotionRouteDeps): Hono<AppEnv> {
       limit: params.limit,
       safeTop: params.safeTop,
       safeBottom: params.safeBottom,
+      marginX: params.marginX,
+      scale: params.scale,
       guides: params.guides,
     });
 

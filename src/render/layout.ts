@@ -31,8 +31,11 @@ export interface LayoutInput {
   /** Quando os dados foram lidos do Notion (carimbo "atualizado"). */
   fetchedAt: Date;
   limit: number;
+  /** Faixa vertical (fração da altura) onde o conteúdo é desenhado. */
   safeTop: number;
   safeBottom: number;
+  /** Margem lateral (fração da largura) de cada lado. */
+  marginX: number;
   guides: boolean;
 }
 
@@ -53,18 +56,11 @@ const SECTION_LABEL: Record<Bucket, string> = {
 };
 
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-function dateHeader(now: Date, tz: string): string {
-  return cap(
-    new Intl.DateTimeFormat("pt-BR", { timeZone: tz, weekday: "long", day: "numeric", month: "long" }).format(now),
-  );
-}
-
-function stamp(fetchedAt: Date, tz: string): string {
-  const time = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(fetchedAt);
+/** "Atualizado em 16/11 22:10 · 4 tasks" */
+function subtitle(fetchedAt: Date, tz: string, count: number): string {
   const day = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, day: "2-digit", month: "2-digit" }).format(fetchedAt);
-  return `Atualizado ${time} · ${day}`;
+  const time = new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(fetchedAt);
+  return `Atualizado em ${day} ${time} · ${count} task${count === 1 ? "" : "s"}`;
 }
 
 function dueLabel(item: TaskItem, tz: string): { text: string; danger: boolean } | undefined {
@@ -96,22 +92,21 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const px = (n: number) => Math.round(n * s);
   const theme: Theme = THEMES[input.theme];
 
-  const left = Math.round(W * 0.06);
+  const left = Math.round(W * input.marginX);
   const boxW = W - left * 2;
   const top = Math.round(H * input.safeTop);
   const bottom = Math.round(H * input.safeBottom);
   const boxH = bottom - top;
 
   // tipografia
-  const F = { h1: px(60), sub: px(34), section: px(30), title: px(42), meta: px(28), foot: px(26) };
+  const F = { h1: px(56), sub: px(28), section: px(28), title: px(38), meta: px(25) };
   const titleWidth = boxW;
   const rowPad = px(14);
   const titleLine = Math.round(F.title * 1.25);
   const metaRow = px(48);
 
-  const headerH = Math.round(F.h1 * 1.2) + Math.round(F.sub * 1.3) + px(34);
-  const footerH = Math.round(F.foot * 1.4) + px(14);
-  const sectionH = Math.round(F.section * 1.3) + px(20);
+  const headerH = Math.round(F.h1 * 1.2) + Math.round(F.sub * 1.3) + px(30);
+  const fullSectionH = Math.round(F.section * 1.3) + px(20);
   const moreH = Math.round(F.meta * 1.4) + px(10);
 
   const rowMeta = (it: TaskItem) => {
@@ -133,7 +128,8 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   }
   const sec = input.selection.sections;
   const groups: Group[] = [];
-  if (input.selection.counts.total === sec.undated.length && sec.undated.length > 0 && sec.undated.every((i) => i.status)) {
+  const statusMode = input.selection.counts.total === sec.undated.length && sec.undated.length > 0 && sec.undated.every((i) => i.status);
+  if (statusMode) {
     for (const it of sec.undated) {
       const last = groups[groups.length - 1];
       if (last && last.label === it.status) last.items.push(it);
@@ -145,8 +141,12 @@ export function buildLayout(input: LayoutInput): LayoutResult {
     }
   }
 
+  // Com um único grupo por status (ex.: só "À Fazer") o cabeçalho de seção é redundante.
+  const showHeaders = !(statusMode && groups.length === 1);
+  const sectionH = showHeaders ? fullSectionH : 0;
+
   // ---- seleciona o que cabe ----
-  let budget = boxH - headerH - footerH;
+  let budget = boxH - headerH;
   const picked: { group: Group; items: TaskItem[] }[] = [];
   let shown = 0;
   let total = 0;
@@ -175,17 +175,10 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const hidden = total - shown;
 
   // ---- constrói os nós ----
-  const c = input.selection.counts;
-  const summary = [
-    c.overdue > 0 && `${c.overdue} atrasada${c.overdue > 1 ? "s" : ""}`,
-    c.today > 0 && `${c.today} para hoje`,
-    c.upcoming + c.undated > 0 && `${c.upcoming + c.undated} pendente${c.upcoming + c.undated > 1 ? "s" : ""}`,
-  ].filter(Boolean) as string[];
-
   const header = div(
-    { flexDirection: "column", height: headerH, paddingBottom: px(34) },
-    div({ fontSize: F.h1, fontWeight: 700, color: theme.text, lineHeight: 1.2 }, "Tarefas"),
-    div({ fontSize: F.sub, fontWeight: 400, color: theme.muted, lineHeight: 1.3 }, dateHeader(input.now, input.tz)),
+    { flexDirection: "column", height: headerH, paddingBottom: px(30) },
+    div({ fontSize: F.h1, fontWeight: 700, color: theme.text, lineHeight: 1.2 }, "Tasks"),
+    div({ fontSize: F.sub, fontWeight: 400, color: theme.muted, lineHeight: 1.3 }, subtitle(input.fetchedAt, input.tz, input.selection.counts.total)),
   );
 
   const renderRow = (it: TaskItem): Node => {
@@ -235,7 +228,7 @@ export function buildLayout(input: LayoutInput): LayoutResult {
     );
   }
   for (const group of picked) {
-    body.push(
+    if (showHeaders) body.push(
       div(
         { height: sectionH, alignItems: "flex-end", paddingBottom: px(10), fontSize: F.section, fontWeight: 600, color: group.group.danger ? theme.danger : theme.muted },
         `${group.group.label}  ·  ${group.group.items.length}`,
@@ -247,16 +240,10 @@ export function buildLayout(input: LayoutInput): LayoutResult {
     body.push(div({ height: moreH, alignItems: "center", fontSize: F.meta, color: theme.muted }, `+${hidden} mais`));
   }
 
-  const footer = div(
-    { position: "absolute", left: 0, bottom: 0, width: boxW, height: footerH, alignItems: "flex-end", fontSize: F.foot, color: theme.muted },
-    `${stamp(input.fetchedAt, input.tz)}${summary.length ? "  ·  " + summary.join(" · ") : ""}`,
-  );
-
   const content = div(
     { position: "absolute", left, top, width: boxW, height: boxH, flexDirection: "column", overflow: "hidden" },
     header,
     div({ flexDirection: "column", width: boxW }, ...body),
-    footer,
   );
 
   const guides = input.guides ? buildGuides(W, H, input, theme) : null;
@@ -285,8 +272,7 @@ function buildGuides(W: number, H: number, input: LayoutInput, theme: Theme): No
   return div(
     { position: "absolute", left: 0, top: 0, width: W, height: H },
     zone(0, 0.08, "rgba(255,0,0,0.25)", "status bar / ilha"),
-    zone(0.08, 0.32, "rgba(255,160,0,0.25)", "data + relogio"),
-    zone(0.32, input.safeTop, "rgba(255,255,0,0.2)", "widgets"),
-    zone(input.safeBottom, 1, "rgba(255,0,0,0.25)", "lanterna / camera"),
+    zone(0.08, input.safeTop, "rgba(255,160,0,0.25)", "data + relogio"),
+    zone(input.safeBottom, 1, "rgba(255,0,0,0.25)", "widgets / controles"),
   );
 }

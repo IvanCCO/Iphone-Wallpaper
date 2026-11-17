@@ -21,7 +21,9 @@
   "cacheTtlSeconds": 120,
   "image": {
     "timezone": "America/Sao_Paulo",
-    "safeTop": 0.4,
-    "safeBottom": 0.84
+    "safeTop": 0.30,
+    "safeBottom": 0.735,
+    "marginX": 0.125,
+    "scale": 2
   }
 }

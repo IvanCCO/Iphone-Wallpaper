@@ -25,8 +25,10 @@ const { png } = await renderTasksPng({
   now,
   fetchedAt: now,
   limit: 8,
-  safeTop: 0.4,
-  safeBottom: 0.84,
+  safeTop: 0.30,
+  safeBottom: 0.735,
+  marginX: 0.125,
+  scale: 1,
   guides: process.argv.includes("--guides"),
 });
 mkdirSync("out", { recursive: true });

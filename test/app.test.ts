@@ -33,13 +33,16 @@ describe("/notion/tasks.png", () => {
     expect(taskSource.fetchTasks).not.toHaveBeenCalled();
   });
 
-  it("200 com PNG 1179x2556 e Cache-Control privado (Bearer)", async () => {
+  it("200 com PNG em 2x (2358x5112) e Cache-Control privado (Bearer)", async () => {
     const res = await makeApp().app.request("/notion/tasks.png", { headers: auth });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("cache-control")).toBe("private, no-store");
     const png = PNG.sync.read(Buffer.from(await res.arrayBuffer()));
-    expect([png.width, png.height]).toEqual([1179, 2556]);
+    expect([png.width, png.height]).toEqual([2358, 5112]);
+    const x1 = await makeApp().app.request("/notion/tasks.png?scale=1", { headers: auth });
+    const p1 = PNG.sync.read(Buffer.from(await x1.arrayBuffer()));
+    expect([p1.width, p1.height]).toEqual([1179, 2556]);
   });
 
   it("aceita ?key= (Atalhos) e mantém o cache privado", async () => {
@@ -49,7 +52,7 @@ describe("/notion/tasks.png", () => {
   });
 
   it("zona segura: nada é desenhado acima de safeTop nem abaixo de safeBottom", async () => {
-    const res = await makeApp().app.request("/notion/tasks.png?view=pending", { headers: auth });
+    const res = await makeApp().app.request("/notion/tasks.png?view=pending&scale=1", { headers: auth });
     const png = PNG.sync.read(Buffer.from(await res.arrayBuffer()));
     const bg = [png.data[0], png.data[1], png.data[2]];
     const differs = (y: number) => {
@@ -59,8 +62,8 @@ describe("/notion/tasks.png", () => {
       }
       return false;
     };
-    const top = Math.round(2556 * 0.4);
-    const bottom = Math.round(2556 * 0.84);
+    const top = Math.round(2556 * 0.30);
+    const bottom = Math.round(2556 * 0.735);
     for (let y = 0; y < top - 2; y += 4) expect(differs(y), `linha ${y}`).toBe(false);
     for (let y = bottom + 2; y < 2556; y += 4) expect(differs(y), `linha ${y}`).toBe(false);
     let drawn = false;
@@ -84,7 +87,7 @@ describe("/notion/tasks.png", () => {
 
   it("400 para parâmetros inválidos", async () => {
     const { app } = makeApp();
-    for (const q of ["view=x", "width=99999", "priority=urgentissima", "tz=Marte/Base"]) {
+    for (const q of ["scale=4", "scale=0.5", "marginX=0.9", "view=x", "width=99999", "priority=urgentissima", "tz=Marte/Base"]) {
       const res = await app.request(`/notion/tasks.png?${q}`, { headers: auth });
       expect(res.status, q).toBe(400);
     }
