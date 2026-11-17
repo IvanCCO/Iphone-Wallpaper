@@ -33,6 +33,7 @@
     "pngjs": "^7.0.0",
     "tsx": "^4.23.15",
     "typescript": "5",
+    "undici-types": "6.21.0",
     "vitest": "^5.1.0"
   },
   "pnpm": {

@@ -1,8 +1,7 @@
 // Validação de pré-push: reproduz o que costuma quebrar o deploy na Vercel.
 // Uso: pnpm verify   (o hook .githooks/pre-push chama este script)
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
@@ -80,23 +79,8 @@ await step("typecheck (tsc)", () => {
   run("pnpm", ["-s", "typecheck"]);
 });
 
-await step("typecheck estilo Vercel (tsconfig temporário fora do projeto)", () => {
-  // @vercel/node gera um tsconfig em /tmp que estende o do projeto e lista só os arquivos de entrada.
-  // Isso quebra `types`/typeRoots relativos (ex.: não achar @types/node). Reproduzimos o mesmo cenário.
-  const dir = mkdtempSync(join(tmpdir(), "vercel-typescript-"));
-  try {
-    const config = {
-      extends: join(process.cwd(), "tsconfig.json"),
-      compilerOptions: { noEmit: true, incremental: false, composite: false, rootDir: process.cwd() },
-      files: [join(process.cwd(), "src", "index.ts")],
-      include: [],
-      exclude: [],
-    };
-    writeFileSync(join(dir, "tsconfig.json"), JSON.stringify(config));
-    run("pnpm", ["exec", "tsc", "--project", join(dir, "tsconfig.json")]);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+await step("typecheck estilo Vercel (language service sem realpath, como o @vercel/node)", () => {
+  run("node", ["scripts/vercel-typecheck.mjs"]);
 });
 
 await step("testes (vitest)", () => {
