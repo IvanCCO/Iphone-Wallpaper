@@ -9,7 +9,7 @@ const toArrayBuffer = (b64: string): ArrayBuffer => {
 };
 
 let fonts: { name: string; data: ArrayBuffer; weight: 400 | 600 | 700; style: "normal" }[] | undefined;
-const getFonts = () =>
+export const getFonts = () =>
   (fonts ??= ([400, 600, 700] as const).map((weight) => ({
     name: "Inter",
     data: toArrayBuffer(INTER_WOFF_BASE64[weight]),

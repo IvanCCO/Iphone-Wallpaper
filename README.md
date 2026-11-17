@@ -146,6 +146,20 @@ scripts/              embed-fonts (gera fonte base64), preview (PNG local)
 Novo grupo de endpoints: crie `src/routes/<grupo>/index.ts` e monte com `app.route("/<grupo>", ...)` em `src/create-app.ts`.
 Para exigir token no grupo, reutilize `requireToken` de `src/lib/auth.ts`.
 
+## Simulador da Tela de Bloqueio (sem deploy)
+
+Usa o **mesmo renderizador da produção** e o `config/notion.json`, e monta uma tela de bloqueio simulada (zoom do iOS de ~14%, relógio, widgets e botões nas posições medidas num iPhone 16). Serve para calibrar sem publicar:
+
+```bash
+pnpm simulate                      # dados fictícios, sem Notion  -> out/simulator.png
+pnpm simulate --live               # tarefas reais do Notion (usa o .env)
+pnpm simulate --safeTop=0.28 --marginX=0.13 --zoom=1.14 --theme=light --guides
+pnpm simulate --no-system          # só o papel de parede com o zoom, sem relógio/widgets
+```
+
+Gera `out/simulator.png` (tela simulada) e `out/wallpaper.png` (a imagem exata que o endpoint devolveria) e imprime um relatório com a faixa ocupada (% da altura) e avisos se o conteúdo invadir o relógio, os widgets ou encostar na borda.
+Os widgets/relógio são aproximações genéricas; se o seu layout mudar, ajuste as constantes `CLOCK_BOTTOM`/`WIDGETS_TOP` e as posições em `scripts/simulate.ts`.
+
 ## Fonte
 
 Inter (SIL OFL 1.1), embutida em base64 em `src/render/fonts.generated.ts` (gerado por `pnpm embed-fonts`), para funcionar igual local, em testes e na Vercel. Licença em `third_party/inter/LICENSE`.
