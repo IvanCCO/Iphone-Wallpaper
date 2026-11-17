@@ -1,0 +1,72 @@
+import { z } from "zod";
+import type { ImageDefaults } from "../../config.js";
+import type { Priority, View } from "../../domain/tasks.js";
+import { badParams } from "../../errors.js";
+import type { ThemeName } from "../../render/theme.js";
+
+export interface TaskImageParams {
+  width: number;
+  height: number;
+  view: View;
+  priorities: Priority[];
+  limit: number;
+  theme: ThemeName;
+  tz: string;
+  safeTop: number;
+  safeBottom: number;
+  guides: boolean;
+}
+
+const MAX_PIXELS = 8_000_000;
+const PRIORITIES = ["high", "medium", "low", "none"] as const;
+
+const isValidTz = (tz: string) => {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Parâmetros desconhecidos (inclusive `key`) são ignorados. Qualquer valor inválido => 400. */
+export function parseTaskImageParams(query: Record<string, string>, d: ImageDefaults): TaskImageParams {
+  const schema = z.object({
+    width: z.coerce.number().int().min(320).max(1500).default(1179),
+    height: z.coerce.number().int().min(640).max(3200).default(2556),
+    view: z.enum(["today", "pending", "all"]).default("today"),
+    priority: z
+      .string()
+      .default("")
+      .transform((s) => s.split(",").map((p) => p.trim().toLowerCase()).filter(Boolean))
+      .pipe(z.array(z.enum(PRIORITIES))),
+    limit: z.coerce.number().int().min(1).max(12).default(8),
+    theme: z.enum(["dark", "light"]).default("dark"),
+    tz: z.string().max(64).default(d.tz).refine(isValidTz, "fuso horário inválido"),
+    safeTop: z.coerce.number().min(0.2).max(0.6).default(d.safeTop),
+    safeBottom: z.coerce.number().min(0.7).max(0.95).default(d.safeBottom),
+    guides: z.enum(["0", "1"]).default("0"),
+  });
+
+  const parsed = schema.safeParse(query);
+  if (!parsed.success) {
+    const fields = [...new Set(parsed.error.issues.map((i) => i.path.join(".")))];
+    throw badParams(`Parâmetros inválidos: ${fields.join(", ")}`);
+  }
+  const p = parsed.data;
+  if (p.width * p.height > MAX_PIXELS) throw badParams("Parâmetros inválidos: width×height excede 8 megapixels");
+  if (p.safeBottom - p.safeTop < 0.2) throw badParams("Parâmetros inválidos: safeTop/safeBottom");
+
+  return {
+    width: p.width,
+    height: p.height,
+    view: p.view,
+    priorities: p.priority,
+    limit: p.limit,
+    theme: p.theme,
+    tz: p.tz,
+    safeTop: p.safeTop,
+    safeBottom: p.safeBottom,
+    guides: p.guides === "1",
+  };
+}
