@@ -98,6 +98,10 @@ O app é detectado pelo zero-config do Hono: `src/index.ts` exporta `default` o 
 4. Calibração: abra `...&guides=1`, veja onde relógio/widgets/lanterna caem e ajuste `safeTop`/`safeBottom`.
    O padrão (`0.4`–`0.84`) assume relógio grande + widgets; no iOS 26 o relógio pode ser mais alto.
 
+### Entrada na Vercel (importante)
+
+O `@vercel/hono` escolhe como entrada o **primeiro** arquivo de `app`, `index`, `server`, `src/app`, `src/index`, `src/server` que contém `from "hono"`. Por isso a fábrica é `src/create-app.ts` (fora da lista) e `src/index.ts` importa `hono` e faz `export default app`. Um `src/app.ts` sem `export default` derruba a função (`Invalid export found in module`).
+
 ## Validação antes do push
 
 `pnpm install` ativa o hook `.githooks/pre-push` (via `prepare`, `git config core.hooksPath .githooks`), que roda `pnpm verify`:
@@ -106,7 +110,7 @@ O app é detectado pelo zero-config do Hono: `src/index.ts` exporta `default` o 
 2. `pnpm-lock.yaml` em sincronia com o `package.json` (a Vercel usa `--frozen-lockfile`);
 3. nenhum `.env` versionado nem token do Notion/`API_TOKEN` nos arquivos;
 4. `tsc --noEmit` e `vitest`;
-5. bundle de `src/index.ts` com esbuild (como a Vercel) e `GET /health` no bundle.
+5. entrada da Vercel (mesma regra do `@vercel/hono`), compila arquivo a arquivo, carrega no Node ESM, chama `GET /health` e renderiza um PNG.
 
 Se algo falhar o push é bloqueado. Emergência: `SKIP_VERIFY=1 git push` (ou `--no-verify`). Rodar à mão: `pnpm verify`.
 
@@ -123,9 +127,9 @@ Se algo falhar o push é bloqueado. Emergência: `SKIP_VERIFY=1 git push` (ou `-
 
 ```
 src/
-  index.ts            entrada Vercel (export default app)
+  index.ts            entrada Vercel (export default app; NÃO crie src/app.ts, ver abaixo)
   dev.ts              servidor Node local
-  app.ts              fábrica do app (middlewares, /health, monta grupos de rotas)
+  create-app.ts       fábrica do app (middlewares, /health, monta grupos de rotas)
   config.ts           validação de env + config/notion.json (zod); erros listam só nomes
   domain/tasks.ts     tipos + classificação/filtro (puro, testável)
   notion/             client (API oficial, retry, timeout) e normalização
@@ -137,7 +141,7 @@ test/                 vitest (sem rede)
 scripts/              embed-fonts (gera fonte base64), preview (PNG local)
 ```
 
-Novo grupo de endpoints: crie `src/routes/<grupo>/index.ts` e monte com `app.route("/<grupo>", ...)` em `src/app.ts`.
+Novo grupo de endpoints: crie `src/routes/<grupo>/index.ts` e monte com `app.route("/<grupo>", ...)` em `src/create-app.ts`.
 Para exigir token no grupo, reutilize `requireToken` de `src/lib/auth.ts`.
 
 ## Fonte

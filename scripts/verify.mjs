@@ -86,6 +86,27 @@ await step("testes (vitest)", () => {
   return out.match(/Tests\s+([^\n]+)/)?.[1]?.trim();
 });
 
+// Regra copiada do @vercel/hono (dist/index.js): primeiro candidato que importa "hono".
+const HONO_CANDIDATES = ["app", "index", "server", "src/app", "src/index", "src/server"];
+const HONO_EXTENSIONS = ["js", "cjs", "mjs", "ts", "cts", "mts"];
+const HONO_IMPORT = /(?:from|require|import)\s*(?:\(\s*)?["']hono["']\s*(?:\))?/g;
+let vercelEntry;
+
+await step("entrada da Vercel (Hono) tem export default", () => {
+  const found = HONO_CANDIDATES.flatMap((f) => HONO_EXTENSIONS.map((e) => `${f}.${e}`)).filter((f) => existsSync(f));
+  const matching = found.filter((f) => readFileSync(f, "utf8").match(HONO_IMPORT) !== null);
+  vercelEntry = matching[0];
+  if (!vercelEntry)
+    throw new Error(`Nenhum arquivo de entrada importa "hono". Candidatos existentes: ${found.join(", ") || "nenhum"}.`);
+  if (!/export\s+default\b/.test(readFileSync(vercelEntry, "utf8")))
+    throw new Error(
+      `A Vercel usará "${vercelEntry}" como entrada, mas ele não tem \`export default\` ` +
+        `(a função falharia com "Invalid export found in module"). Mova a fábrica para um arquivo fora de ` +
+        `${HONO_CANDIDATES.join(", ")} e deixe a entrada exportar o app.`,
+    );
+  return vercelEntry;
+});
+
 await step("runtime estilo Vercel (compila arquivo a arquivo e carrega no Node ESM)", () => {
   // A Vercel não empacota: compila cada .ts e o Node carrega como ESM. Pega o que tsx/esbuild perdoam
   // (ex.: import de JSON sem `with { type: "json" }`, extensões, dependência de módulo faltando).
@@ -94,8 +115,8 @@ await step("runtime estilo Vercel (compila arquivo a arquivo e carrega no Node E
   try {
     run("pnpm", ["exec", "tsc", "-p", "tsconfig.json", "--noEmit", "false", "--outDir", dir, "--rootDir", ".", "--incremental", "false", "--declaration", "false"]);
     const probe = `
-      const m = await import(${JSON.stringify("./" + join(dir, "src", "index.js"))});
-      if (typeof m.default?.fetch !== "function") throw new Error("src/index.ts deve exportar default o app Hono.");
+      const m = await import(${JSON.stringify("./" + join(dir, (vercelEntry ?? "src/index.ts").replace(/\.[cm]?ts$/, ".js")))});
+      if (typeof m.default?.fetch !== "function") throw new Error("a entrada deve exportar default o app Hono.");
       const r = await m.default.request("/health");
       if (r.status !== 200) throw new Error("/health respondeu " + r.status);
       const { renderTasksPng } = await import(${JSON.stringify("./" + join(dir, "src", "render", "png.js"))});
