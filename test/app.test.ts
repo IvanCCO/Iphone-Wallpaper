@@ -171,3 +171,42 @@ describe("gráfico de vida na rota", () => {
     expect((await get(withBirth, "&lifeStyle=donut")).res.status).toBe(400);
   });
 });
+
+describe("seção Brio na rota", () => {
+  const brioEnv = { ...TEST_ENV, NOTION_TOKEN_BRIO: "token_brio_de_teste", NOTION_DATABASE_ID_BRIO: "0123456789abcdef0123456789abcdef" };
+  const brioCfg = { brio: { enabled: true, statuses: ["Para puxar"] } };
+  const get = async (opts: { env?: Record<string, string>; config?: unknown; brio?: () => Promise<{ id: string; title: string; status: string; statusRank: number }[]>; q?: string }) => {
+    const logs: Record<string, unknown>[] = [];
+    const app = createApp({
+      env: opts.env ?? brioEnv,
+      config: opts.config ?? brioCfg,
+      taskSource: { fetchTasks: async () => sampleTasks },
+      brioSource: { fetchTasks: opts.brio ?? (async () => [{ id: "b1", title: "Tarefa do trabalho", status: "Para puxar", statusRank: 0 }]) },
+      now: () => NOW,
+      logger: { info: (_e, f) => void logs.push(f ?? {}), error() {} },
+    });
+    const res = await app.request(`/notion/tasks.png?scale=1${opts.q ?? ""}`, { headers: auth });
+    return { res, log: logs.find((l) => l.path === "/notion/tasks.png") };
+  };
+
+  it("com Brio ligado busca a segunda fonte e loga só a contagem (nunca títulos)", async () => {
+    const { res, log } = await get({});
+    expect(res.status).toBe(200);
+    expect(log?.brio).toBe(1);
+    expect(JSON.stringify(log)).not.toContain("Tarefa do trabalho");
+  });
+
+  it("falha do Brio não derruba o wallpaper: 200 e o código do erro no log", async () => {
+    const { res, log } = await get({ brio: async () => { throw new AppError("NOTION_AUTH", 502, "Notion recusou o token (401)."); } });
+    expect([res.status, log?.brio]).toEqual([200, "NOTION_AUTH"]);
+  });
+
+  it("desligado por padrão, sem variáveis ou com ?brio=0 não chama a fonte", async () => {
+    const calls = vi.fn(async () => []);
+    expect((await get({ config: {}, brio: calls })).log?.brio).toBe("disabled");
+    expect((await get({ env: TEST_ENV, brio: calls })).log?.brio).toBe("missing_env");
+    expect((await get({ brio: calls, q: "&brio=0" })).log?.brio).toBe("param_off");
+    expect(calls).not.toHaveBeenCalled();
+  });
+});
+

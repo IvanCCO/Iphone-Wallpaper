@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./app-env.js";
 import rawFileConfig from "../config/notion.json" with { type: "json" };
-import { loadAuthConfig, loadImageDefaults, loadLifeConfig, loadNotionConfig, parseFileConfig, type Env } from "./config.js";
+import { loadAuthConfig, loadBrioConfig, loadImageDefaults, loadLifeConfig, loadNotionConfig, parseFileConfig, type Env } from "./config.js";
 import { AppError } from "./errors.js";
 import { consoleLogger, type Logger } from "./lib/logger.js";
+import { createBrioSource, type BrioSource } from "./notion/brio.js";
 import { createNotionTaskSource, type TaskSource } from "./notion/client.js";
 import { notionRoutes } from "./routes/notion/index.js";
 
@@ -12,6 +13,7 @@ export interface AppOptions {
   /** Conteúdo de config/notion.json (padrão: o arquivo do projeto). Útil em testes. */
   config?: unknown;
   taskSource?: TaskSource;
+  brioSource?: BrioSource;
   now?: () => Date;
   logger?: Logger;
 }
@@ -42,6 +44,7 @@ export function createApp(opts: AppOptions = {}): Hono<AppEnv> {
   const getNotion = lazy(() => loadNotionConfig(env, getFile()));
   const getImageDefaults = lazy(() => loadImageDefaults(getFile()));
   const getLife = lazy(() => loadLifeConfig(getFile()));
+  const getBrio = lazy(() => loadBrioConfig(env, getFile()));
 
   const app = new Hono<AppEnv>();
 
@@ -80,7 +83,9 @@ export function createApp(opts: AppOptions = {}): Hono<AppEnv> {
       getNotion,
       getImageDefaults,
       getLife,
+      getBrio,
       source: opts.taskSource ?? createNotionTaskSource(),
+      brioSource: opts.brioSource ?? createBrioSource(),
       now,
     }),
   );

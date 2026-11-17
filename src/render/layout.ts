@@ -39,6 +39,8 @@ export interface LayoutInput {
   marginX: number;
   /** Progresso de vida (0 a 1) e estilo; omitido = sem gráfico. */
   life?: { fraction: number; style: "pie" | "bar" };
+  /** Seção compacta de outra fonte (ex.: "Brio"): divisor + rótulo + linhas de uma linha cada. */
+  brio?: { label: string; items: { title: string; status?: string }[]; hidden: number };
   guides: boolean;
 }
 
@@ -145,6 +147,15 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const textH = Math.round(F.h1 * 1.2) + Math.round(F.sub * 1.3);
   const headerH = Math.max(textH, lifeH) + px(30);
   const fullSectionH = Math.round(F.section * 1.3) + px(20);
+
+  // seção "Brio": compacta, reservada ANTES das tarefas principais para nunca ser empurrada para fora
+  const brio = input.brio && input.brio.items.length > 0 ? input.brio : undefined;
+  const brioTitleF = px(28);
+  const brioStatusF = px(21);
+  const brioRowH = Math.round(brioTitleF * 1.25) + px(18);
+  const brioStatusW = px(170);
+  const brioLabelH = Math.round(px(26) * 1.3);
+  const brioH = brio ? px(34) + brioLabelH + px(14) + brio.items.length * brioRowH : 0;
   const moreH = Math.round(F.meta * 1.4) + px(10);
 
   const rowMeta = (it: TaskItem) => {
@@ -184,7 +195,7 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const sectionH = showHeaders ? fullSectionH : 0;
 
   // ---- seleciona o que cabe ----
-  let budget = boxH - headerH;
+  let budget = boxH - headerH - brioH;
   const picked: { group: Group; items: TaskItem[] }[] = [];
   let shown = 0;
   let total = 0;
@@ -316,10 +327,30 @@ export function buildLayout(input: LayoutInput): LayoutResult {
     body.push(div({ height: moreH, alignItems: "center", fontSize: F.meta, color: theme.muted }, `+${hidden} mais`));
   }
 
+  const hasStatus = !!brio?.items.some((i) => i.status);
+  const brioNode = brio
+    ? div(
+        { flexDirection: "column", width: boxW, marginTop: px(34) },
+        div(
+          { alignItems: "center", height: brioLabelH, marginBottom: px(14) },
+          div({ fontSize: px(26), fontWeight: 600, color: theme.muted, letterSpacing: px(1) }, brio.hidden > 0 ? `${brio.label}  ·  +${brio.hidden}` : brio.label),
+          div({ flex: 1, height: Math.max(1, px(2)), background: theme.border, marginLeft: px(18) }),
+        ),
+        ...brio.items.map((it) =>
+          div(
+            { alignItems: "center", justifyContent: "space-between", height: brioRowH, width: boxW },
+            div({ width: hasStatus ? boxW - brioStatusW - px(16) : boxW, fontSize: brioTitleF, color: theme.text, lineClamp: 1 }, it.title),
+            hasStatus && div({ width: brioStatusW, justifyContent: "flex-end", fontSize: brioStatusF, color: theme.muted, lineClamp: 1 }, it.status ?? ""),
+          ),
+        ),
+      )
+    : undefined;
+
   const content = div(
     { position: "absolute", left, top, width: boxW, height: boxH, flexDirection: "column", overflow: "hidden" },
     header,
     div({ flexDirection: "column", width: boxW }, ...body),
+    brioNode,
   );
 
   const guides = input.guides ? buildGuides(W, H, input, theme) : null;

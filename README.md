@@ -27,6 +27,7 @@ Autenticação: `Authorization: Bearer <API_TOKEN>` (preferido) ou `?key=<API_TO
 | `tz` | `America/Sao_Paulo` | fuso IANA |
 | `safeTop` / `safeBottom` | `0.30` / `0.735` | faixa vertical (fração da altura) onde o conteúdo é desenhado |
 | `marginX` | `0.125` | margem lateral de cada lado (fração da largura) |
+| `brio` | `1` | `0` desliga a seção Brio |
 | `life` | `1` | `0` desliga o gráfico de vida |
 | `lifeStyle` | do JSON (`bar`) | `bar` (barra com caveira) ou `pie` (rosca com % dentro) |
 | `guides` | `0` | `1` desenha as zonas do sistema (calibração) |
@@ -52,7 +53,7 @@ Gere o `API_TOKEN` com `openssl rand -hex 32`.
 
 ## Configuração
 
-Só **3 variáveis de ambiente** (segredos), no `.env` local e na Vercel: `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID`.
+Variáveis de ambiente (segredos), no `.env` local e na Vercel: `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID` e, para a seção Brio, `NOTION_TOKEN_BRIO` e `NOTION_DATABASE_ID_BRIO`.
 Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O arquivo é validado ao iniciar; chaves desconhecidas dão erro (pega typos), e todos os campos são opcionais.
 
 ```jsonc
@@ -149,6 +150,24 @@ scripts/              embed-fonts (gera fonte base64), preview (PNG local)
 Novo grupo de endpoints: crie `src/routes/<grupo>/index.ts` e monte com `app.route("/<grupo>", ...)` em `src/create-app.ts`.
 Para exigir token no grupo, reutilize `requireToken` de `src/lib/auth.ts`.
 
+## Seção "Brio" (segunda fonte do Notion)
+
+Abaixo das tarefas aparece um divisor com o rótulo `Brio` e linhas compactas (uma linha por tarefa, status à direita) vindas de **outro workspace/token**. Os segredos ficam em `NOTION_TOKEN_BRIO` e `NOTION_DATABASE_ID_BRIO`; o resto, em `brio` no `config/notion.json`:
+
+```jsonc
+"brio": {
+  "enabled": true, "label": "Brio",
+  "properties": { "title": "Name", "status": "status", "assignee": "Atribuído para", "type": "tipo", "subItem": "Sub-item" },
+  "statuses": ["Para puxar"],          // ordem de exibição; ex.: ["Para puxar", "In progress"]
+  "assignees": ["Ivan Freire"],        // só o que está no seu nome (compara o nome, sem acento/caixa)
+  "excludeTypes": ["epico"],           // tipos escondidos
+  "onlyWithoutSubItems": true,         // esconde itens agrupadores (com sub-itens)
+  "showStatus": true, "limit": 4, "sortBy": "Prioridade"
+}
+```
+
+A API do Notion não lê views, então os filtros da view são replicados aqui. A seção reserva o espaço antes das tarefas principais. **Falha isolada:** se o outro workspace estiver fora do ar ou o token for recusado, o wallpaper sai normalmente sem a seção (o log registra só o código do erro ou a contagem, nunca títulos). A integração do Brio só precisa de "Read content" e de acesso ao database. Dados de trabalho passam por este servidor: mantenha o `API_TOKEN` em segredo.
+
 ## Progresso de vida
 
 Ao lado direito de "Tasks" aparece quanto da vida já passou: do nascimento até o aniversário de `lifeProgress.lifespanYears` anos (padrão 84; o dia exato da morte é desconhecido). O padrão é `bar`: barra roxa sobre trilho neutro com o `%` e uma caveira desenhada em vetor. A alternativa `pie` é uma rosca com o `%` dentro. O número usa duas casas (`22.33%`), é recalculado a cada requisição (dias civis no fuso configurado + fração do dia) e muda cerca de a cada 3 dias.
@@ -163,6 +182,7 @@ Usa o **mesmo renderizador da produção** e o `config/notion.json`, e monta uma
 pnpm simulate                      # dados fictícios, sem Notion  -> out/simulator.png
 pnpm simulate --live               # tarefas reais do Notion (usa o .env)
 pnpm simulate --safeTop=0.28 --marginX=0.13 --zoom=1.14 --theme=light --guides
+pnpm simulate --brio-statuses="Para puxar,In progress"   # status da seção Brio (--brio-status=0 esconde o status, --brio=off remove)
 pnpm simulate --no-system          # só o papel de parede com o zoom, sem relógio/widgets
 pnpm simulate --life=pie --birth=AAAA-MM-DD   # estilo do gráfico de vida e data (sem --birth usa o config/notion.json)
 ```

@@ -19,6 +19,8 @@ export interface TaskImageParams {
   /** false desliga o gráfico de vida; lifeStyle sobrescreve o estilo do config. */
   life: boolean;
   lifeStyle?: "pie" | "bar";
+  /** false desliga a seção da segunda fonte (Brio). */
+  brio: boolean;
   guides: boolean;
 }
 
@@ -55,6 +57,7 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     scale: z.coerce.number().min(1).max(3).default(d.scale),
     life: z.enum(["0", "1"]).default("1"),
     lifeStyle: z.enum(["pie", "bar"]).optional(),
+    brio: z.enum(["0", "1"]).default("1"),
     guides: z.enum(["0", "1"]).default("0"),
   });
 
@@ -81,6 +84,7 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     scale: p.scale,
     life: p.life === "1",
     lifeStyle: p.lifeStyle,
+    brio: p.brio === "1",
     guides: p.guides === "1",
   };
 }

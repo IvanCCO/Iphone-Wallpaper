@@ -6,6 +6,7 @@
 //   pnpm simulate --safeTop=0.28 --safeBottom=0.74 --marginX=0.13 --theme=light --guides
 //   pnpm simulate --life=bar      gráfico de vida em barra (padrão: o de config/notion.json; --life=off desliga)
 //   pnpm simulate --birth=AAAA-MM-DD   data de nascimento (padrão: lifeProgress.birthDate do config/notion.json)
+//   pnpm simulate --brio-statuses="Para puxar,In progress"   status da seção Brio (padrão: config/notion.json); --brio-status=0 esconde o status; --brio=off remove a seção
 //   pnpm simulate --no-system     mostra só o papel de parede (com o zoom), sem relógio/widgets
 //
 // Saídas: out/simulator.png (tela simulada) e out/wallpaper.png (a imagem exata que o endpoint devolveria).
@@ -13,9 +14,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import rawFileConfig from "../config/notion.json" with { type: "json" };
-import { loadImageDefaults, loadLifeConfig, loadNotionConfig, parseFileConfig } from "../src/config.js";
+import { loadBrioConfig, loadImageDefaults, loadLifeConfig, loadNotionConfig, parseFileConfig } from "../src/config.js";
 import { formatPercent, isValidCivilDate, lifeProgress } from "../src/domain/life.js";
 import { dayKeyInTz, selectTasks, type Task } from "../src/domain/tasks.js";
+import { createBrioSource } from "../src/notion/brio.js";
 import { createNotionTaskSource } from "../src/notion/client.js";
 import { getFonts, renderTasksPng } from "../src/render/png.js";
 
@@ -57,6 +59,38 @@ if (args.has("live")) {
 }
 const selection = selectTasks(tasks, { view: "pending", now, tz });
 
+// ---------- seção Brio ----------
+const brioOff = args.get("brio") === "off";
+const brioFile = {
+  ...file,
+  brio: {
+    ...file.brio,
+    ...(args.has("brio-statuses") ? { statuses: args.get("brio-statuses")!.split(",").map((x) => x.trim()).filter(Boolean) } : {}),
+    ...(args.has("brio-status") ? { showStatus: args.get("brio-status") !== "0" } : {}),
+  },
+};
+let brio: { label: string; items: { title: string; status?: string }[]; hidden: number } | undefined;
+let brioNote = "";
+if (!brioOff && brioFile.brio.enabled) {
+  const loaded = loadBrioConfig(args.has("live") ? process.env : { NOTION_TOKEN_BRIO: "simulado-simulado", NOTION_DATABASE_ID_BRIO: "simulado-simulado" }, brioFile);
+  if (loaded.config) {
+    let items: { title: string; status: string }[];
+    if (args.has("live")) {
+      items = (await createBrioSource().fetchTasks(loaded.config)).map((t) => ({ title: t.title, status: t.status }));
+    } else {
+      // dados fictícios: distribui entre os status configurados
+      const st = brioFile.brio.statuses;
+      const titles = ["Criar estrutura da lista de exercícios", "Colocar as apostilas no novo formato", "Configurar dashboards e alertas centralizados com grafana", "Ter todos os conteúdos com apostilas de geografia", "Revisar o fluxo de onboarding"];
+      items = titles.map((title, i) => ({ title, status: st[Math.min(st.length - 1, Math.floor(i / 2))] ?? "Para puxar" }));
+    }
+    const shown = items.slice(0, loaded.config.limit);
+    brio = { label: loaded.config.label, items: shown.map((t) => ({ title: t.title, status: loaded.config!.showStatus ? t.status : undefined })), hidden: items.length - shown.length };
+    brioNote = `Brio: ${items.length} tasks (${brioFile.brio.statuses.join(", ")}) ${args.has("live") ? "ao vivo" : "fictícias"}`;
+  } else {
+    brioNote = `Brio: sem seção (${loaded.reason})`;
+  }
+}
+
 // ---------- progresso de vida ----------
 const lifeArg = args.get("life");
 const birthArg = args.get("birth");
@@ -74,7 +108,7 @@ if (lifeArg !== "off" && lifeLoaded.config) {
 // ---------- papel de parede (exatamente o que o endpoint devolve) ----------
 const { png: wallpaper, layout } = await renderTasksPng({
   selection, width: W, height: H, theme, tz, now, fetchedAt: now, limit: 8,
-  safeTop, safeBottom, marginX, life, guides: args.has("guides"), scale,
+  safeTop, safeBottom, marginX, life, brio, guides: args.has("guides"), scale,
 });
 
 // ---------- tela de bloqueio simulada ----------
@@ -141,6 +175,7 @@ const used = layout.rowsShown;
 console.log(`Fonte das tarefas: ${args.has("live") ? "Notion (ao vivo)" : "dados fictícios"} | ${selection.counts.total} tasks, ${used} visíveis${layout.rowsHidden ? `, +${layout.rowsHidden} ocultas` : ""}`);
 if (life) console.log(`Vida: ${formatPercent(life.fraction)}% (${life.style})`);
 else console.log(`Vida: sem gráfico (${lifeArg === "off" ? "--life=off" : lifeLoaded.reason})`);
+if (brioNote) console.log(brioNote);
 console.log(`Zoom do iOS: ${zoom} | imagem ${W * scale}×${H * scale}`);
 console.log(`Conteúdo na tela: ${(cTop * 100).toFixed(1)}% → ${(cBottom * 100).toFixed(1)}% da altura | margem esquerda ${left.toFixed(1)}% da largura`);
 if (left < 4) console.log("⚠ margem lateral pequena: o texto pode encostar na borda (aumente marginX).");

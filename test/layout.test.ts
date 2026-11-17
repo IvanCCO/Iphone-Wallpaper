@@ -89,3 +89,33 @@ describe("gráfico de vida", () => {
   });
 });
 
+describe("seção Brio", () => {
+  const sel = selectTasks(sampleTasks, { view: "pending", now: NOW, tz: TZ });
+  const items = [{ title: "Tarefa A", status: "Para puxar" }, { title: "Tarefa B", status: "In progress" }];
+  const render = (brio?: { label: string; items: { title: string; status?: string }[]; hidden: number }) =>
+    buildLayout({ ...base, selection: sel, brio });
+
+  it("mostra divisor, rótulo, títulos e status", () => {
+    const t = JSON.stringify(render({ label: "Brio", items, hidden: 0 }).root);
+    for (const x of ["Brio", "Tarefa A", "Tarefa B", "Para puxar", "In progress"]) expect(t).toContain(x);
+  });
+
+  it("sem status quando não informado e com contador de ocultas no rótulo", () => {
+    const t = JSON.stringify(render({ label: "Brio", items: items.map((i) => ({ title: i.title })), hidden: 3 }).root);
+    expect(t).not.toContain("In progress");
+    expect(t).toContain("Brio  ·  +3");
+  });
+
+  it("reserva espaço: as tarefas principais cedem lugar e tudo continua na caixa segura", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: String(i), title: `Tarefa ${i}`, done: false, priority: "none" as const, status: "À Fazer", statusRank: 0 }));
+    const s2 = selectTasks(many, { view: "pending", now: NOW, tz: TZ });
+    const sem = buildLayout({ ...base, selection: s2 });
+    const com = buildLayout({ ...base, selection: s2, brio: { label: "Brio", items, hidden: 0 } });
+    expect(com.rowsShown).toBeLessThanOrEqual(sem.rowsShown);
+  });
+
+  it("sem itens não desenha a seção", () => {
+    expect(JSON.stringify(render({ label: "Brio", items: [], hidden: 0 }).root)).not.toContain("Brio");
+  });
+});
+

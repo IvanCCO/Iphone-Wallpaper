@@ -19,6 +19,18 @@
   "dateFilter": "empty",
   "sortBy": "Tags",
   "lifeProgress": { "enabled": true, "birthDate": "2004-03-09", "lifespanYears": 84, "style": "bar" },
+  "brio": {
+    "enabled": true,
+    "label": "Brio",
+    "properties": { "title": "Name", "status": "status", "assignee": "Atribuído para", "type": "tipo", "subItem": "Sub-item" },
+    "statuses": ["Para puxar"],
+    "assignees": ["Ivan Freire"],
+    "excludeTypes": ["epico"],
+    "onlyWithoutSubItems": true,
+    "showStatus": true,
+    "limit": 4,
+    "sortBy": "Prioridade"
+  },
   "cacheTtlSeconds": 120,
   "image": {
     "timezone": "America/Sao_Paulo",

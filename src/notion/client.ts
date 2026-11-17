@@ -17,7 +17,7 @@ const SCHEMA_TTL_MS = 60 * 60 * 1000;
 
 type FetchLike = typeof fetch;
 
-interface Schema {
+export interface Schema {
   dataSourceId: string;
   properties: Record<string, { type: string; [k: string]: any }>;
 }
@@ -41,10 +41,22 @@ function mapHttpError(status: number, retryAfter: string | null): AppError {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function createNotionTaskSource(fetchImpl: FetchLike = fetch): TaskSource {
+/** O que é preciso para falar com um database (serve para qualquer workspace/integração). */
+export interface NotionConn {
+  token: string;
+  databaseId: string;
+  /** Opcional: pula a descoberta do data source. */
+  dataSourceId?: string;
+  apiVersion: string;
+  requestTimeoutMs: number;
+}
+
+/** Camada HTTP + descoberta de schema, com retry/timeout e cache de schema. Compartilhada por todas as fontes. */
+export function createNotionApi(fetchImpl: FetchLike = fetch) {
   const schemaCache = new TtlCache<Schema>();
 
-  async function request(cfg: NotionConfig, method: "GET" | "POST", path: string, body?: unknown): Promise<any> {
+
+  async function request(cfg: NotionConn, method: "GET" | "POST", path: string, body?: unknown): Promise<any> {
     for (let attempt = 0; ; attempt++) {
       let res: Response;
       try {
@@ -77,7 +89,7 @@ export function createNotionTaskSource(fetchImpl: FetchLike = fetch): TaskSource
     }
   }
 
-  async function resolveSchema(cfg: NotionConfig): Promise<Schema> {
+  async function resolveSchema(cfg: NotionConn): Promise<Schema> {
     const { value } = await schemaCache.getOrLoad(`${cfg.databaseId}:${cfg.dataSourceId ?? ""}`, SCHEMA_TTL_MS, async () => {
       let dataSourceId = cfg.dataSourceId;
       if (!dataSourceId) {
@@ -95,6 +107,14 @@ export function createNotionTaskSource(fetchImpl: FetchLike = fetch): TaskSource
     });
     return value;
   }
+
+  return { request, resolveSchema };
+}
+
+export type NotionApi = ReturnType<typeof createNotionApi>;
+
+export function createNotionTaskSource(fetchImpl: FetchLike = fetch): TaskSource {
+  const { request, resolveSchema } = createNotionApi(fetchImpl);
 
   /** Confere que as propriedades configuradas existem. Erro lista só nomes de propriedades. */
   function assertSchema(cfg: NotionConfig, schema: Schema): void {

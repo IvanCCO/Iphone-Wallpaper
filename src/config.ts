@@ -103,6 +103,42 @@ const fileSchema = z.strictObject({
       style: z.enum(["pie", "bar"]).default("bar"),
     })
     .prefault({}),
+  /**
+   * Segunda fonte (outro workspace do Notion, outro token): seção compacta "Brio" abaixo das tarefas.
+   * Segredos em NOTION_TOKEN_BRIO e NOTION_DATABASE_ID_BRIO; o resto aqui.
+   */
+  brio: z
+    .strictObject({
+      enabled: z.boolean().default(false),
+      label: z.string().min(1).default("Brio"),
+      properties: z
+        .strictObject({
+          title: z.string().min(1).default("Name"),
+          status: z.string().min(1).default("status"),
+          /** Propriedade de pessoas usada para filtrar "no meu nome". */
+          assignee: z.string().min(1).default("Atribuído para"),
+          type: z.string().min(1).default("tipo"),
+          /** Relação de sub-itens (usada por onlyWithoutSubItems). */
+          subItem: z.string().min(1).default("Sub-item"),
+        })
+        .prefault({}),
+      /** Status exibidos, na ordem de exibição. */
+      statuses: nameList(["Para puxar"]),
+      /** Só tarefas atribuídas a estes nomes (comparação sem acento/caixa). Vazio = todas. */
+      assignees: names,
+      /** Tipos (propriedade `properties.type`) a excluir, ex.: ["epico"]. */
+      excludeTypes: names,
+      /** true = só tarefas sem sub-itens (esconde épicos agrupadores). */
+      onlyWithoutSubItems: z.boolean().default(false),
+      /** Mostra o status à direita de cada linha. */
+      showStatus: z.boolean().default(true),
+      /** Máximo de linhas (1 a 8). */
+      limit: z.number().int().min(1).max(8).default(4),
+      /** Propriedade usada para ordenar a consulta (ascendente), ex.: "Prioridade". */
+      sortBy: z.string().min(1).optional(),
+      cacheTtlSeconds: z.number().min(0).default(120),
+    })
+    .prefault({}),
   cacheTtlSeconds: z.number().min(0).default(120),
   timeoutMs: z.number().int().min(1000).default(8000),
   image: z
@@ -215,4 +251,51 @@ export function loadLifeConfig(file: FileConfig): { config?: LifeConfig; reason?
   if (!l.enabled) return { reason: "disabled" };
   if (!l.birthDate) return { reason: "no_birth_date" };
   return { config: { birthDate: l.birthDate, lifespanYears: l.lifespanYears, style: l.style } };
+}
+
+// ---------- Segunda fonte: Brio ----------
+
+export interface BrioConfig {
+  token: string;
+  databaseId: string;
+  apiVersion: string;
+  requestTimeoutMs: number;
+  label: string;
+  props: { title: string; status: string; assignee: string; type: string; subItem: string };
+  /** Status na ordem de exibição (normalizados). */
+  statuses: string[];
+  assignees: string[];
+  excludeTypes: string[];
+  onlyWithoutSubItems: boolean;
+  showStatus: boolean;
+  limit: number;
+  sortProp?: string;
+  cacheTtlSeconds: number;
+}
+
+/** Desligada (config ausente) se `brio.enabled` é false ou faltam as variáveis; o wallpaper segue sem a seção. */
+export function loadBrioConfig(env: Env, file: FileConfig): { config?: BrioConfig; reason?: string } {
+  const b = file.brio;
+  if (!b.enabled) return { reason: "disabled" };
+  const token = env.NOTION_TOKEN_BRIO?.trim();
+  const databaseId = env.NOTION_DATABASE_ID_BRIO?.trim();
+  if (!token || token.length < 10 || !databaseId || databaseId.length < 10) return { reason: "missing_env" };
+  return {
+    config: {
+      token,
+      databaseId: databaseId.replace(/-/g, ""),
+      apiVersion: NOTION_API_VERSION,
+      requestTimeoutMs: file.timeoutMs,
+      label: b.label,
+      props: b.properties,
+      statuses: b.statuses.map(norm),
+      assignees: b.assignees.map(norm),
+      excludeTypes: b.excludeTypes.map(norm),
+      onlyWithoutSubItems: b.onlyWithoutSubItems,
+      showStatus: b.showStatus,
+      limit: b.limit,
+      sortProp: b.sortBy,
+      cacheTtlSeconds: b.cacheTtlSeconds,
+    },
+  };
 }
