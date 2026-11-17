@@ -27,8 +27,8 @@ describe("buildLayout", () => {
     expect(buildLayout({ ...base, selection: sel }).rowsShown).toBe(0);
   });
 
-  it("estimateLines limita a 2", () => {
-    expect(estimateLines("a".repeat(500), 42, 900)).toBe(2);
+  it("estimateLines limita a 3", () => {
+    expect(estimateLines("a".repeat(500), 42, 900)).toBe(3);
     expect(estimateLines("curto", 42, 900)).toBe(1);
   });
 });
@@ -116,6 +116,24 @@ describe("seção Brio", () => {
 
   it("sem itens não desenha a seção", () => {
     expect(JSON.stringify(render({ label: "Brio", items: [], hidden: 0 }).root)).not.toContain("Brio");
+  });
+});
+
+describe("título longo e etiqueta à direita", () => {
+  const long = { id: "x", title: "palavra ".repeat(80), done: false, priority: "high" as const, tag: "Urgente", status: "À Fazer", statusRank: 0 };
+  const sel = selectTasks([long], { view: "pending", now: NOW, tz: TZ });
+  const text = JSON.stringify(buildLayout({ ...base, selection: sel, brio: { label: "Brio", items: [{ title: "Item do trabalho", status: "Para puxar" }], hidden: 0 } }).root);
+
+  it("limita o título a 3 linhas com reticências (display block + lineClamp + maxHeight)", () => {
+    expect(text).toContain('"lineClamp":3');
+    expect(text).toContain('"display":"block"');
+    expect(text).toContain('"maxHeight"');
+  });
+
+  it("a etiqueta fica na mesma linha, à direita, e a seção Brio continua presente", () => {
+    expect(text).toContain("Urgente");
+    expect(text).toContain('"justifyContent":"flex-end"');
+    expect(text).toContain("Item do trabalho");
   });
 });
 

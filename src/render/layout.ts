@@ -115,10 +115,10 @@ const img = (src: string, w: number, h: number, style: Record<string, unknown> =
   props: { src, width: w, height: h, style: { width: w, height: h, ...style } },
 });
 
-/** Estimativa conservadora de linhas (Inter ≈ 0.58 em de largura média), limitada a 2. */
+/** Estimativa conservadora de linhas (Inter ≈ 0.55 em de largura média), limitada a 3. */
 export function estimateLines(text: string, fontPx: number, widthPx: number): number {
-  const perLine = Math.max(1, Math.floor(widthPx / (fontPx * 0.58)));
-  return Math.min(2, Math.max(1, Math.ceil(text.length / perLine)));
+  const perLine = Math.max(1, Math.floor(widthPx / (fontPx * 0.55)));
+  return Math.min(3, Math.max(1, Math.ceil(text.length / perLine)));
 }
 
 export function buildLayout(input: LayoutInput): LayoutResult {
@@ -135,7 +135,8 @@ export function buildLayout(input: LayoutInput): LayoutResult {
 
   // tipografia
   const F = { h1: px(56), sub: px(28), section: px(28), title: px(38), meta: px(25) };
-  const titleWidth = boxW;
+  const tagColW = px(200); // coluna da etiqueta, à direita do título
+  const titleWidthFor = (hasTag: boolean) => (hasTag ? boxW - tagColW : boxW);
   const rowPad = px(14);
   const titleLine = Math.round(F.title * 1.25);
   const metaRow = px(48);
@@ -161,10 +162,11 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const rowMeta = (it: TaskItem) => {
     const due = dueLabel(it, input.tz);
     const hasPriority = !!it.tag;
-    return { due, hasPriority, hasMeta: hasPriority || !!due };
+    // a etiqueta vai à direita do título; só o vencimento (quando existe) ocupa uma linha extra
+    return { due, hasPriority, hasMeta: !!due };
   };
   const rowHeight = (it: TaskItem) => {
-    const lines = estimateLines(it.title, F.title, titleWidth);
+    const lines = estimateLines(it.title, F.title, titleWidthFor(!!it.tag));
     return rowPad * 2 + lines * titleLine + (rowMeta(it).hasMeta ? metaRow : 0);
   };
 
@@ -269,24 +271,23 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   );
 
   const renderRow = (it: TaskItem): Node => {
-    const { due, hasPriority } = rowMeta(it);
-    const meta: Child[] = [];
-    if (hasPriority) {
-      // cor pela prioridade mapeada; tags sem prioridade (ex.: "Normal", "Brio") ficam neutras
-      const t = theme.tag[it.priority === "none" ? "low" : it.priority];
-      meta.push(
-        div(
-          { background: t.bg, color: t.fg, fontSize: F.meta, fontWeight: 600, padding: `${px(4)}px ${px(16)}px`, borderRadius: px(10), marginRight: px(16) },
-          it.tag,
-        ),
-      );
-    }
-    if (due) meta.push(div({ fontSize: F.meta, color: due.danger ? theme.danger : theme.muted, fontWeight: 400 }, due.text));
+    const { due } = rowMeta(it);
+    // cor pela prioridade mapeada; tags sem prioridade (ex.: "Normal", "Brio") ficam neutras
+    const t = theme.tag[it.priority === "none" ? "low" : it.priority];
+    const badge = it.tag
+      ? div(
+          { width: tagColW, justifyContent: "flex-end", flexShrink: 0, paddingTop: px(2) },
+          div(
+            { background: t.bg, color: t.fg, fontSize: F.meta, fontWeight: 600, padding: `${px(4)}px ${px(16)}px`, borderRadius: px(10), maxWidth: tagColW, lineClamp: 1 },
+            it.tag,
+          ),
+        )
+      : undefined;
 
     return div(
-      { alignItems: "flex-start", paddingTop: rowPad, paddingBottom: rowPad, borderTop: `${Math.max(1, px(2))}px solid ${theme.border}` },
+      { alignItems: "flex-start", justifyContent: "space-between", paddingTop: rowPad, paddingBottom: rowPad, borderTop: `${Math.max(1, px(2))}px solid ${theme.border}` },
       div(
-        { flexDirection: "column", width: titleWidth },
+        { flexDirection: "column", width: titleWidthFor(!!it.tag) - (it.tag ? px(16) : 0) },
         div(
           {
             fontSize: F.title,
@@ -294,13 +295,18 @@ export function buildLayout(input: LayoutInput): LayoutResult {
             fontWeight: 400,
             color: it.done ? theme.muted : theme.text,
             textDecoration: it.done ? "line-through" : "none",
-            // altura natural (a estimativa só serve para decidir quantas linhas cabem); no máximo 2 linhas
-            lineClamp: 2,
+            // no máximo 3 linhas, com reticências. `display: block` é exigido pelo Satori para o lineClamp
+            // funcionar; maxHeight + overflow é a rede de segurança (a altura segue natural abaixo de 3 linhas).
+            display: "block",
+            lineClamp: 3,
+            maxHeight: 3 * titleLine,
+            overflow: "hidden",
           },
           it.title,
         ),
-        meta.length > 0 && div({ alignItems: "center", marginTop: px(10), height: metaRow - px(10) }, ...meta),
+        due && div({ alignItems: "center", marginTop: px(10), height: metaRow - px(10), fontSize: F.meta, color: due.danger ? theme.danger : theme.muted, fontWeight: 400 }, due.text),
       ),
+      badge,
     );
   };
 
@@ -339,7 +345,7 @@ export function buildLayout(input: LayoutInput): LayoutResult {
         ...brio.items.map((it) =>
           div(
             { alignItems: "center", justifyContent: "space-between", height: brioRowH, width: boxW },
-            div({ width: hasStatus ? boxW - brioStatusW - px(16) : boxW, fontSize: brioTitleF, color: theme.text, lineClamp: 1 }, it.title),
+            div({ width: hasStatus ? boxW - brioStatusW - px(16) : boxW, fontSize: brioTitleF, color: theme.text, display: "block", lineClamp: 1, overflow: "hidden" }, it.title),
             hasStatus && div({ width: brioStatusW, justifyContent: "flex-end", fontSize: brioStatusF, color: theme.muted, lineClamp: 1 }, it.status ?? ""),
           ),
         ),
