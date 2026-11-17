@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadAuthConfig, loadImageDefaults, loadNotionConfig } from "../src/config.js";
+import { loadAuthConfig, loadImageDefaults, loadNotionConfig, parseFileConfig } from "../src/config.js";
 import { tokenMatches } from "../src/lib/auth.js";
 import { TtlCache } from "../src/lib/cache.js";
 
@@ -21,7 +21,7 @@ describe("config", () => {
 
   it("erro do Notion lista só nomes de variáveis, nunca valores", () => {
     try {
-      loadNotionConfig({ NOTION_TOKEN: "segredo-segredo" });
+      loadNotionConfig({ NOTION_TOKEN: "segredo-segredo" }, parseFileConfig({}));
       expect.unreachable();
     } catch (e) {
       expect((e as Error).message).toContain("NOTION_DATABASE_ID");
@@ -29,10 +29,15 @@ describe("config", () => {
     }
   });
 
+  it("rejeita chaves desconhecidas no JSON (typos)", () => {
+    expect(() => parseFileConfig({ statuss: {} })).toThrow(/config\/notion\.json/);
+  });
+
   it("normaliza o id do database e valida zona segura", () => {
-    const c = loadNotionConfig({ NOTION_TOKEN: "x".repeat(12), NOTION_DATABASE_ID: "01234567-89ab-cdef-0123-456789abcdef" });
+    const c = loadNotionConfig({ NOTION_TOKEN: "x".repeat(12), NOTION_DATABASE_ID: "01234567-89ab-cdef-0123-456789abcdef" }, parseFileConfig({}));
     expect(c.databaseId).toBe("0123456789abcdef0123456789abcdef");
-    expect(() => loadImageDefaults({ IMAGE_SAFE_TOP: "0.9" })).toThrow();
+    expect(() => parseFileConfig({ image: { safeTop: 0.9 } })).toThrow(/image\.safeTop/);
+    expect(loadImageDefaults(parseFileConfig({ image: { safeTop: 0.3 } })).safeTop).toBe(0.3);
   });
 });
 
@@ -50,5 +55,12 @@ describe("TtlCache", () => {
 
     await expect(cache.getOrLoad("f", 1000, async () => Promise.reject(new Error("x")))).rejects.toThrow();
     expect((await cache.getOrLoad("f", 1000, async () => 9)).value).toBe(9);
+  });
+});
+
+describe("config/notion.json real", () => {
+  it("é válido", async () => {
+    const raw = (await import("../config/notion.json")).default;
+    expect(() => parseFileConfig(raw)).not.toThrow();
   });
 });

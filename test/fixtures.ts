@@ -1,5 +1,5 @@
 import type { NotionConfig } from "../src/config.js";
-import { loadNotionConfig } from "../src/config.js";
+import { loadNotionConfig, parseFileConfig } from "../src/config.js";
 import type { Task } from "../src/domain/tasks.js";
 
 export const TEST_ENV = {
@@ -8,8 +8,8 @@ export const TEST_ENV = {
   NOTION_DATABASE_ID: "0123456789abcdef0123456789abcdef",
 };
 
-export const notionCfg = (extra: Record<string, string> = {}): NotionConfig =>
-  loadNotionConfig({ ...TEST_ENV, ...extra });
+/** Config de teste: padrões do schema + sobreposições do JSON (nunca depende de config/notion.json real). */
+export const notionCfg = (file: unknown = {}): NotionConfig => loadNotionConfig(TEST_ENV, parseFileConfig(file));
 
 /** "Agora" fixo: 2026-11-16 12:00 em São Paulo (UTC-3). */
 export const NOW = new Date("2026-11-16T15:00:00Z");

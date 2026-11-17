@@ -47,7 +47,7 @@ describe("normalizePage", () => {
   it("prioridade desconhecida vira none; '-' desliga propriedades", () => {
     const t = normalizePage(page({ Name: title("a"), Priority: { type: "select", select: { name: "???" } } }), cfg);
     expect(t?.priority).toBe("none");
-    const off = notionCfg({ NOTION_PROP_PRIORITY: "-", NOTION_PROP_DUE: "-", NOTION_PROP_STATUS: "-" });
+    const off = notionCfg({ properties: { priority: "-", due: "-", status: "-" } });
     const t2 = normalizePage(page({ Name: title("a"), Priority: { type: "select", select: { name: "Alta" } } }), off);
     expect(t2).toMatchObject({ priority: "none", done: false });
     expect(t2?.due).toBeUndefined();
@@ -55,7 +55,7 @@ describe("normalizePage", () => {
 });
 
 describe("activeStatuses", () => {
-  const cfg = notionCfg({ NOTION_ACTIVE_STATUSES: "À Fazer, Fazendo" });
+  const cfg = notionCfg({ statuses: { active: ["À Fazer", "Fazendo"] } });
   const st = (name: string) => ({ Name: title("a"), Status: { type: "status", status: { name } } });
 
   it("mantém só os status listados (ignora acento/caixa/espaços)", () => {

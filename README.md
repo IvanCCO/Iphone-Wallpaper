@@ -29,14 +29,14 @@ Autenticação: `Authorization: Bearer <API_TOKEN>` (preferido) ou `?key=<API_TO
 
 Erros são JSON `{ error: { code, message }, requestId }` e nunca contêm títulos de tarefas. Parâmetro inválido → 400, sem token → 401, falha do Notion → 502/503/504.
 
-A imagem sai com `Cache-Control: private, no-store`: nenhuma CDN guarda a imagem e a autenticação é sempre avaliada. O cache de dados do Notion (`NOTION_CACHE_TTL_SECONDS`, padrão 120 s) fica em memória, depois da autenticação.
+A imagem sai com `Cache-Control: private, no-store`: nenhuma CDN guarda a imagem e a autenticação é sempre avaliada. O cache de dados do Notion (`cacheTtlSeconds` no JSON, padrão 120 s) fica em memória, depois da autenticação.
 
 ## Rodar local
 
 ```bash
 cd /mnt/HD/Code/personal-api
 pnpm install
-cp .env.example .env      # preencha API_TOKEN, NOTION_TOKEN, NOTION_DATABASE_ID
+cp .env.example .env      # preencha as 3 variáveis; o resto está em config/notion.json
 pnpm dev                  # http://127.0.0.1:3000
 
 curl -H "Authorization: Bearer $API_TOKEN" localhost:3000/notion/tasks.png -o tasks.png
@@ -46,25 +46,45 @@ pnpm test && pnpm typecheck
 
 Gere o `API_TOKEN` com `openssl rand -hex 32`.
 
-## Configurar o Notion
+## Configuração
+
+Só **3 variáveis de ambiente** (segredos), no `.env` local e na Vercel: `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID`.
+Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O arquivo é validado ao iniciar; chaves desconhecidas dão erro (pega typos), e todos os campos são opcionais.
+
+```jsonc
+{
+  "properties": { "title": "Name", "status": "Status", "due": "Date", "priority": "Tags" }, // "-" desliga uma opcional
+  "statuses":   { "active": ["À Fazer"], "done": ["Feito"] },   // active: só esses status entram
+  "tags": {
+    "exclude": ["Leitura"],                                      // tags removidas
+    "priority": { "high": ["Urgente"], "medium": ["Importante"], "low": ["No seu tempo"] }
+  },
+  "dateFilter": "empty",   // "empty" = só tarefas sem data; "any" = todas
+  "sortBy": "Tags",        // ordena a consulta por esta propriedade
+  "cacheTtlSeconds": 120,
+  "image": { "timezone": "America/Sao_Paulo", "safeTop": 0.4, "safeBottom": 0.84 }
+}
+```
+
+Para mudar o comportamento, edite o JSON, faça commit e push (a Vercel faz o deploy sozinha).
+A API não lê as views do Notion, então os filtros da sua view são replicados aqui.
+A etiqueta de cada linha mostra o nome da tag do Notion; a cor vem de `tags.priority`.
+
+### Configurar o Notion
 
 1. Crie uma **integração interna** em <https://www.notion.so/profile/integrations>.
-2. Capacidades: **somente "Read content"** (sem escrita, sem dados de usuário).
-3. No database de tarefas: `•••` → **Connections** → adicione a integração.
-4. `NOTION_DATABASE_ID`: é o trecho de 32 caracteres da URL do database (antes do `?v=`).
-5. Ajuste `NOTION_PROP_*` se suas propriedades não se chamam `Name`, `Status`, `Due`, `Priority`.
-   O erro da API lista as propriedades disponíveis quando algo não bate.
+2. Capacidades: **somente "Read content"**.
+3. No database: `•••` → **Connections** → adicione a integração.
+4. `NOTION_DATABASE_ID`: trecho de 32 caracteres da URL do database (antes do `?v=`).
 
-Para replicar o filtro de uma view (a API não lê views): `NOTION_ACTIVE_STATUSES` (só esses status), `NOTION_EXCLUDE_TAGS` (exclui tags), `NOTION_DATE_FILTER=empty` (só sem data) e `NOTION_SORT_PROP` (ordenação). A etiqueta de cada linha mostra o nome da tag do Notion.
-
-Usa a API oficial versão `2025-09-03` (data sources). O `data_source_id` é descoberto a partir do database; fixe com `NOTION_DATA_SOURCE_ID` para pular essa chamada.
+Se uma propriedade não bater, o erro da API lista as disponíveis. Usa a API oficial versão `2025-09-03` (data sources); fixe o `dataSourceId` no JSON para pular a descoberta.
 
 ## Deploy na Vercel (não executado ainda)
 
 O app é detectado pelo zero-config do Hono: `src/index.ts` exporta `default` o app.
 
 1. `pnpm dlx vercel link` dentro de `/mnt/HD/Code/personal-api` (ou importe o repositório no painel).
-2. Cadastre em *Settings → Environment Variables* (Production e Preview): `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID` e os opcionais de `.env.example`. **Nunca** commite `.env`.
+2. Cadastre em *Settings → Environment Variables* (Production e Preview) apenas `API_TOKEN`, `NOTION_TOKEN` e `NOTION_DATABASE_ID`. **Nunca** commite `.env`.
 3. `pnpm dlx vercel deploy` (preview) → teste → `--prod`.
 4. Considere ativar **Deployment Protection** apenas em previews; em produção a proteção é o `API_TOKEN`.
 5. Cold start: Satori + resvg levam ~1 s na primeira chamada; as seguintes são mais rápidas. Se passar do timeout padrão, aumente `maxDuration` da função.
@@ -94,12 +114,13 @@ src/
   index.ts            entrada Vercel (export default app)
   dev.ts              servidor Node local
   app.ts              fábrica do app (middlewares, /health, monta grupos de rotas)
-  config.ts           validação de env (zod); erros listam só nomes
+  config.ts           validação de env + config/notion.json (zod); erros listam só nomes
   domain/tasks.ts     tipos + classificação/filtro (puro, testável)
   notion/             client (API oficial, retry, timeout) e normalização
   render/             layout (Satori) → SVG → PNG (resvg); tema; fonte Inter embutida
   routes/notion/      rotas /notion/* e parsing de parâmetros
   lib/                auth, cache TTL single-flight, logger
+config/notion.json   configuração não secreta (propriedades, filtros, cache, imagem)
 test/                 vitest (sem rede)
 scripts/              embed-fonts (gera fonte base64), preview (PNG local)
 ```

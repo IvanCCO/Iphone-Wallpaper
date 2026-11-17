@@ -125,7 +125,7 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   };
 
   // ---- grupos de exibição ----
-  // Só tarefas sem data e com status: agrupa por status (ordem de NOTION_ACTIVE_STATUSES). Senão, por bucket.
+  // Só tarefas sem data e com status: agrupa por status (ordem de statuses.active). Senão, por bucket.
   interface Group {
     label: string;
     danger: boolean;

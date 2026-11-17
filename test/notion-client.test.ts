@@ -81,7 +81,7 @@ describe("createNotionTaskSource", () => {
       "GET /v1/data_sources/ds-1": () => json({ properties: { ...dsProps, Status: { type: "status", status: { options: [{ name: "Padrões" }, { name: "À Fazer" }, { name: "Fazendo" }, { name: "Feito " }] } } } }),
       "POST /v1/data_sources/ds1/query": () => json({ results: [], has_more: false }),
     });
-    await createNotionTaskSource(f as unknown as typeof fetch).fetchTasks(notionCfg({ NOTION_ACTIVE_STATUSES: "À Fazer,Fazendo" }));
+    await createNotionTaskSource(f as unknown as typeof fetch).fetchTasks(notionCfg({ statuses: { active: ["À Fazer", "Fazendo"] } }));
     const call = f.mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(JSON.parse(String(call[1]!.body)).filter).toEqual({
       or: [
@@ -99,7 +99,7 @@ describe("createNotionTaskSource", () => {
       "POST /v1/data_sources/ds1/query": () => json({ results: [], has_more: false }),
     });
     await createNotionTaskSource(f as unknown as typeof fetch).fetchTasks(
-      notionCfg({ NOTION_EXCLUDE_TAGS: "leitura", NOTION_DATE_FILTER: "empty", NOTION_SORT_PROP: "Priority" }),
+      notionCfg({ tags: { exclude: ["leitura"] }, dateFilter: "empty", sortBy: "Priority" }),
     );
     const body = JSON.parse(String(f.mock.calls.find(([, i]) => i?.method === "POST")![1]!.body));
     expect(body.filter.and).toEqual([

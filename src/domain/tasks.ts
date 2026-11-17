@@ -7,7 +7,7 @@ export interface Task {
   title: string;
   done: boolean;
   priority: Priority;
-  /** Nome do status no Notion (ex.: "À Fazer") e sua posição em NOTION_ACTIVE_STATUSES (ordem de exibição). */
+  /** Nome do status no Notion (ex.: "À Fazer") e sua posição em statuses.active (ordem de exibição). */
   status?: string;
   statusRank?: number;
   /** Nome original da tag/prioridade no Notion (ex.: "Urgente"), exibido na etiqueta. */

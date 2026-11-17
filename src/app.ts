@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./app-env.js";
-import { loadAuthConfig, loadImageDefaults, loadNotionConfig, type Env } from "./config.js";
+import rawFileConfig from "../config/notion.json";
+import { loadAuthConfig, loadImageDefaults, loadNotionConfig, parseFileConfig, type Env } from "./config.js";
 import { AppError } from "./errors.js";
 import { consoleLogger, type Logger } from "./lib/logger.js";
 import { createNotionTaskSource, type TaskSource } from "./notion/client.js";
@@ -8,6 +9,8 @@ import { notionRoutes } from "./routes/notion/index.js";
 
 export interface AppOptions {
   env?: Env;
+  /** Conteúdo de config/notion.json (padrão: o arquivo do projeto). Útil em testes. */
+  config?: unknown;
   taskSource?: TaskSource;
   now?: () => Date;
   logger?: Logger;
@@ -29,8 +32,9 @@ export function createApp(opts: AppOptions = {}): Hono<AppEnv> {
   const logger = opts.logger ?? consoleLogger;
 
   const getAuth = lazy(() => loadAuthConfig(env));
-  const getNotion = lazy(() => loadNotionConfig(env));
-  const getImageDefaults = lazy(() => loadImageDefaults(env));
+  const getFile = lazy(() => parseFileConfig(opts.config ?? rawFileConfig));
+  const getNotion = lazy(() => loadNotionConfig(env, getFile()));
+  const getImageDefaults = lazy(() => loadImageDefaults(getFile()));
 
   const app = new Hono<AppEnv>();
 

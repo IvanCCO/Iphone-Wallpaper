@@ -106,7 +106,7 @@ export function createNotionTaskSource(fetchImpl: FetchLike = fetch): TaskSource
       throw new AppError(
         "NOTION_SCHEMA",
         502,
-        `Propriedades não encontradas: ${missing.join(", ")}. Disponíveis: ${names.join(", ")}. Ajuste NOTION_PROP_* (use "-" para desligar).`,
+        `Propriedades não encontradas: ${missing.join(", ")}. Disponíveis: ${names.join(", ")}. Ajuste "properties" em config/notion.json (use "-" para desligar).`,
       );
     }
   }

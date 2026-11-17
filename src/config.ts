@@ -45,12 +45,82 @@ export function loadAuthConfig(env: Env): AuthConfig {
   return { tokens };
 }
 
+// ---------- Arquivo de configuração (config/notion.json) ----------
+
+const names = z.array(z.string().min(1)).default([]);
+const nameList = (fallback: string[]) => z.array(z.string().min(1)).default(fallback);
+
+/**
+ * Tudo que não é segredo vive em config/notion.json. Chaves desconhecidas são erro (pega typos).
+ * Todos os campos são opcionais; os padrões servem para um database genérico de tarefas.
+ */
+const fileSchema = z.strictObject({
+  /** Opcional: pula a descoberta do data source. */
+  dataSourceId: z.string().optional(),
+  /** Nomes das propriedades no Notion. Use "-" para desligar uma opcional. */
+  properties: z
+    .strictObject({
+      title: z.string().min(1).default("Name"),
+      status: z.string().min(1).default("Status"),
+      due: z.string().min(1).default("Due"),
+      priority: z.string().min(1).default("Priority"),
+    })
+    .prefault({}),
+  statuses: z
+    .strictObject({
+      /** Se não vazio, só tarefas com estes status entram (na ordem de exibição). */
+      active: names,
+      /** Status que significam "concluída". */
+      done: nameList(["Done", "Complete", "Completed", "Concluído", "Concluída", "Concluido", "Feito", "Finalizado"]),
+    })
+    .prefault({}),
+  tags: z
+    .strictObject({
+      /** Tags a excluir (aplicadas à propriedade `properties.priority`). */
+      exclude: names,
+      /** Quais valores da propriedade viram prioridade alta/média/baixa (define a cor e a ordem). */
+      priority: z
+        .strictObject({
+          high: nameList(["High", "Alta", "Alto", "Urgente", "P1"]),
+          medium: nameList(["Medium", "Média", "Media", "Médio", "P2"]),
+          low: nameList(["Low", "Baixa", "Baixo", "P3"]),
+        })
+        .prefault({}),
+    })
+    .prefault({}),
+  /** "empty": só tarefas sem data; "any": todas. */
+  dateFilter: z.enum(["any", "empty"]).default("any"),
+  /** Propriedade usada para ordenar a consulta (ascendente). Padrão: a de vencimento. */
+  sortBy: z.string().min(1).optional(),
+  cacheTtlSeconds: z.number().min(0).default(120),
+  timeoutMs: z.number().int().min(1000).default(8000),
+  image: z
+    .strictObject({
+      timezone: z.string().min(1).default("America/Sao_Paulo"),
+      /** Fração da altura onde o conteúdo começa (abaixo do relógio/widgets). */
+      safeTop: z.number().min(0.2).max(0.6).default(0.4),
+      /** Fração da altura onde termina (acima da lanterna/câmera). */
+      safeBottom: z.number().min(0.7).max(0.95).default(0.84),
+    })
+    .prefault({}),
+});
+
+export type FileConfig = z.output<typeof fileSchema>;
+
+export function parseFileConfig(raw: unknown): FileConfig {
+  const parsed = fileSchema.safeParse(raw);
+  if (!parsed.success) throw configError(issuesToMessage("config/notion.json inválido", parsed.error));
+  return parsed.data;
+}
+
 // ---------- Notion ----------
+
+/** Versão fixa da API do Notion (data sources). */
+export const NOTION_API_VERSION = "2025-09-03";
 
 export interface NotionConfig {
   token: string;
   databaseId: string;
-  /** Opcional: pula a descoberta do data source. */
   dataSourceId?: string;
   apiVersion: string;
   props: { title: string; status: string; due: string; priority: string };
@@ -58,67 +128,45 @@ export interface NotionConfig {
   doneStatuses: string[];
   /** Se não vazio, só tarefas com um destes status (normalizados) entram; o resto é ignorado. */
   activeStatuses: string[];
-  /** Tags (normalizadas) a excluir, aplicadas à propriedade de prioridade/tag (NOTION_PROP_PRIORITY). */
+  /** Tags (normalizadas) a excluir, aplicadas à propriedade de prioridade/tag. */
   excludeTags: string[];
-  /** "empty": só tarefas sem data (replica uma view "Date is empty"); "any": todas. */
   dateFilter: "any" | "empty";
-  /** Propriedade usada para ordenar a consulta (ascendente). Padrão: a de vencimento. */
   sortProp?: string;
-  /** Valores (normalizados) do campo de prioridade. */
+  /** Valores (normalizados) da propriedade de prioridade. */
   priorityMap: Record<Exclude<Priority, "none">, string[]>;
   cacheTtlSeconds: number;
   requestTimeoutMs: number;
 }
 
+/** Segredos/identificação vêm do ambiente; o resto vem do arquivo de configuração. */
 const notionSchema = z.object({
   NOTION_TOKEN: z.string().min(10),
   NOTION_DATABASE_ID: z.string().min(10),
 });
 
-export function loadNotionConfig(env: Env): NotionConfig {
+export function loadNotionConfig(env: Env, file: FileConfig): NotionConfig {
   const parsed = notionSchema.safeParse(env);
   if (!parsed.success) {
     throw configError(issuesToMessage("Variáveis do Notion ausentes ou inválidas", parsed.error));
   }
-  const ttl = Number(env.NOTION_CACHE_TTL_SECONDS ?? 120);
-  const timeout = Number(env.NOTION_TIMEOUT_MS ?? 8000);
-  if (!Number.isFinite(ttl) || ttl < 0 || !Number.isFinite(timeout) || timeout < 1000) {
-    throw configError("NOTION_CACHE_TTL_SECONDS/NOTION_TIMEOUT_MS inválidos.");
-  }
-  const dateFilter = (env.NOTION_DATE_FILTER?.trim().toLowerCase() || "any") as "any" | "empty";
-  if (dateFilter !== "any" && dateFilter !== "empty") throw configError("NOTION_DATE_FILTER deve ser 'any' ou 'empty'.");
   return {
     token: parsed.data.NOTION_TOKEN,
     databaseId: parsed.data.NOTION_DATABASE_ID.replace(/-/g, ""),
-    dataSourceId: env.NOTION_DATA_SOURCE_ID?.replace(/-/g, "") || undefined,
-    apiVersion: env.NOTION_API_VERSION?.trim() || "2025-09-03",
-    props: {
-      title: env.NOTION_PROP_TITLE?.trim() || "Name",
-      status: env.NOTION_PROP_STATUS?.trim() || "Status",
-      due: env.NOTION_PROP_DUE?.trim() || "Due",
-      priority: env.NOTION_PROP_PRIORITY?.trim() || "Priority",
-    },
-    doneStatuses: csv(env.NOTION_DONE_STATUSES, [
-      "Done",
-      "Complete",
-      "Completed",
-      "Concluído",
-      "Concluída",
-      "Concluido",
-      "Feito",
-      "Finalizado",
-    ]).map(norm),
-    activeStatuses: csv(env.NOTION_ACTIVE_STATUSES, []).map(norm),
-    excludeTags: csv(env.NOTION_EXCLUDE_TAGS, []).map(norm),
-    dateFilter,
-    sortProp: env.NOTION_SORT_PROP?.trim() || undefined,
+    dataSourceId: file.dataSourceId?.replace(/-/g, "") || undefined,
+    apiVersion: NOTION_API_VERSION,
+    props: file.properties,
+    doneStatuses: file.statuses.done.map(norm),
+    activeStatuses: file.statuses.active.map(norm),
+    excludeTags: file.tags.exclude.map(norm),
+    dateFilter: file.dateFilter,
+    sortProp: file.sortBy,
     priorityMap: {
-      high: csv(env.NOTION_PRIORITY_HIGH, ["High", "Alta", "Alto", "Urgente", "P1"]).map(norm),
-      medium: csv(env.NOTION_PRIORITY_MEDIUM, ["Medium", "Média", "Media", "Médio", "P2"]).map(norm),
-      low: csv(env.NOTION_PRIORITY_LOW, ["Low", "Baixa", "Baixo", "P3"]).map(norm),
+      high: file.tags.priority.high.map(norm),
+      medium: file.tags.priority.medium.map(norm),
+      low: file.tags.priority.low.map(norm),
     },
-    cacheTtlSeconds: ttl,
-    requestTimeoutMs: timeout,
+    cacheTtlSeconds: file.cacheTtlSeconds,
+    requestTimeoutMs: file.timeoutMs,
   };
 }
 
@@ -130,11 +178,6 @@ export interface ImageDefaults {
   safeBottom: number;
 }
 
-export function loadImageDefaults(env: Env): ImageDefaults {
-  const safeTop = Number(env.IMAGE_SAFE_TOP ?? 0.4);
-  const safeBottom = Number(env.IMAGE_SAFE_BOTTOM ?? 0.84);
-  if (!(safeTop >= 0.2 && safeTop <= 0.6) || !(safeBottom >= 0.7 && safeBottom <= 0.95)) {
-    throw configError("IMAGE_SAFE_TOP deve estar em [0.2, 0.6] e IMAGE_SAFE_BOTTOM em [0.7, 0.95].");
-  }
-  return { tz: env.TZ_DEFAULT?.trim() || "America/Sao_Paulo", safeTop, safeBottom };
+export function loadImageDefaults(file: FileConfig): ImageDefaults {
+  return { tz: file.image.timezone, safeTop: file.image.safeTop, safeBottom: file.image.safeBottom };
 }

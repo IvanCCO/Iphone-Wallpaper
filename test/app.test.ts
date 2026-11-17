@@ -8,9 +8,9 @@ import { NOW, sampleTasks, TEST_ENV } from "./fixtures.js";
 
 const auth = { Authorization: `Bearer ${TEST_ENV.API_TOKEN}` };
 
-function makeApp(source?: TaskSource, env: Record<string, string> = TEST_ENV) {
+function makeApp(source?: TaskSource, env: Record<string, string> = TEST_ENV, config: unknown = {}) {
   const taskSource = source ?? { fetchTasks: vi.fn(async () => sampleTasks) };
-  const app = createApp({ env, taskSource, now: () => NOW, logger: silentLogger });
+  const app = createApp({ env, config, taskSource, now: () => NOW, logger: silentLogger });
   return { app, taskSource };
 }
 
@@ -76,7 +76,7 @@ describe("/notion/tasks.png", () => {
   });
 
   it("TTL 0 desliga o cache", async () => {
-    const { app, taskSource } = makeApp(undefined, { ...TEST_ENV, NOTION_CACHE_TTL_SECONDS: "0" });
+    const { app, taskSource } = makeApp(undefined, TEST_ENV, { cacheTtlSeconds: 0 });
     await app.request("/notion/tasks.png", { headers: auth });
     await app.request("/notion/tasks.png", { headers: auth });
     expect(taskSource.fetchTasks).toHaveBeenCalledTimes(2);

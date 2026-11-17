@@ -1,0 +1,27 @@
+{
+  "properties": {
+    "title": "Name",
+    "status": "Status",
+    "due": "Date",
+    "priority": "Tags"
+  },
+  "statuses": {
+    "active": ["À Fazer"]
+  },
+  "tags": {
+    "exclude": ["Leitura"],
+    "priority": {
+      "high": ["Urgente"],
+      "medium": ["Importante"],
+      "low": ["No seu tempo", "Besteira"]
+    }
+  },
+  "dateFilter": "empty",
+  "sortBy": "Tags",
+  "cacheTtlSeconds": 120,
+  "image": {
+    "timezone": "America/Sao_Paulo",
+    "safeTop": 0.4,
+    "safeBottom": 0.84
+  }
+}
