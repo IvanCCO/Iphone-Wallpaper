@@ -131,3 +131,43 @@ describe("/notion/tasks.png", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("gráfico de vida na rota", () => {
+  const withBirth = { ...TEST_ENV, BIRTH_DATE: "2000-03-09" };
+  const get = async (env: Record<string, string>, q = "") => {
+    const logs: Record<string, unknown>[] = [];
+    const app = createApp({
+      env,
+      config: {},
+      taskSource: { fetchTasks: async () => sampleTasks },
+      now: () => NOW,
+      logger: { info: (_e, f) => void logs.push(f ?? {}), error() {} },
+    });
+    const res = await app.request(`/notion/tasks.png?scale=1${q}`, { headers: auth });
+    return { res, log: logs.find((l) => l.path === "/notion/tasks.png") };
+  };
+
+  it("com BIRTH_DATE desenha o gráfico (pie por padrão) e loga só o estilo, nunca a data", async () => {
+    const { res, log } = await get(withBirth);
+    expect(res.status).toBe(200);
+    expect(log?.life).toBe("pie");
+    expect(JSON.stringify(log)).not.toContain("2000-03-09");
+  });
+
+  it("?lifeStyle=bar troca o estilo; ?life=0 desliga", async () => {
+    expect((await get(withBirth, "&lifeStyle=bar")).log?.life).toBe("bar");
+    expect((await get(withBirth, "&life=0")).log?.life).toBe("param_off");
+  });
+
+  it("sem BIRTH_DATE ou com valor inválido o wallpaper continua funcionando sem o gráfico", async () => {
+    const a = await get(TEST_ENV);
+    expect([a.res.status, a.log?.life]).toEqual([200, "no_birth_date"]);
+    const b = await get({ ...TEST_ENV, BIRTH_DATE: "lixo" });
+    expect([b.res.status, b.log?.life]).toEqual([200, "invalid_birth_date"]);
+  });
+
+  it("?lifeStyle inválido → 400", async () => {
+    expect((await get(withBirth, "&lifeStyle=donut")).res.status).toBe(400);
+  });
+});
+

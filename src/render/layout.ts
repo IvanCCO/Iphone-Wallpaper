@@ -1,4 +1,5 @@
 import { BUCKET_ORDER, type Bucket, type Priority, type Selection, type TaskItem } from "../domain/tasks.js";
+import { formatPercent } from "../domain/life.js";
 import { THEMES, type Theme, type ThemeName } from "./theme.js";
 
 /** Largura de referência (iPhone 14/15/16 de 6,1"). Todas as medidas escalam com width/1179. */
@@ -36,6 +37,8 @@ export interface LayoutInput {
   safeBottom: number;
   /** Margem lateral (fração da largura) de cada lado. */
   marginX: number;
+  /** Progresso de vida (0 a 1) e estilo; omitido = sem gráfico. */
+  life?: { fraction: number; style: "pie" | "bar" };
   guides: boolean;
 }
 
@@ -80,6 +83,36 @@ function dueLabel(item: TaskItem, tz: string): { text: string; danger: boolean }
   return undefined;
 }
 
+
+// ---------- gráfico de vida ----------
+
+const svgUri = (svg: string) => `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+
+/** Rosca (pie/donut): trilho neutro + arco roxo a partir do topo, no sentido horário. */
+function donutSvg(size: number, thickness: number, fraction: number, theme: Theme): string {
+  const r = (size - thickness) / 2;
+  const c = size / 2;
+  const len = 2 * Math.PI * r;
+  const arc = Math.max(0, Math.min(1, fraction)) * len;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${theme.track}" stroke-width="${thickness}"/>` +
+    (arc > 0 ? `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${theme.accent}" stroke-width="${thickness}" stroke-linecap="round" stroke-dasharray="${arc} ${len}" transform="rotate(-90 ${c} ${c})"/>` : "") +
+    `</svg>`;
+}
+
+/** Caveira desenhada como vetor (emoji não depende de fonte/rede no servidor). */
+function skullSvg(size: number, color: string, hole: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+    `<path fill="${color}" d="M12 2C7.6 2 4 5.4 4 9.6c0 2.6 1.3 4.6 3 5.9V19c0 .6.4 1 1 1h1.5v-2h1v2h3v-2h1v2H16c.6 0 1-.4 1-1v-3.5c1.7-1.3 3-3.3 3-5.9C20 5.4 16.4 2 12 2z"/>` +
+    `<circle cx="8.8" cy="10.2" r="2.1" fill="${hole}"/><circle cx="15.2" cy="10.2" r="2.1" fill="${hole}"/>` +
+    `<path fill="${hole}" d="M12 12.6l1.1 2.2h-2.2z"/></svg>`;
+}
+
+const img = (src: string, w: number, h: number, style: Record<string, unknown> = {}): Node => ({
+  type: "img",
+  props: { src, width: w, height: h, style: { width: w, height: h, ...style } },
+});
+
 /** Estimativa conservadora de linhas (Inter ≈ 0.58 em de largura média), limitada a 2. */
 export function estimateLines(text: string, fontPx: number, widthPx: number): number {
   const perLine = Math.max(1, Math.floor(widthPx / (fontPx * 0.58)));
@@ -105,7 +138,12 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const titleLine = Math.round(F.title * 1.25);
   const metaRow = px(48);
 
-  const headerH = Math.round(F.h1 * 1.2) + Math.round(F.sub * 1.3) + px(30);
+  const lifeStyle = input.life?.style;
+  const pieSize = px(184);
+  const barW = px(330);
+  const lifeH = !input.life ? 0 : lifeStyle === "pie" ? pieSize : px(84);
+  const textH = Math.round(F.h1 * 1.2) + Math.round(F.sub * 1.3);
+  const headerH = Math.max(textH, lifeH) + px(30);
   const fullSectionH = Math.round(F.section * 1.3) + px(20);
   const moreH = Math.round(F.meta * 1.4) + px(10);
 
@@ -175,10 +213,48 @@ export function buildLayout(input: LayoutInput): LayoutResult {
   const hidden = total - shown;
 
   // ---- constrói os nós ----
-  const header = div(
-    { flexDirection: "column", height: headerH, paddingBottom: px(30) },
+  const titleBlock = div(
+    { flexDirection: "column" },
     div({ fontSize: F.h1, fontWeight: 700, color: theme.text, lineHeight: 1.2 }, "Tasks"),
     div({ fontSize: F.sub, fontWeight: 400, color: theme.muted, lineHeight: 1.3 }, subtitle(input.fetchedAt, input.tz, input.selection.counts.total)),
+  );
+
+  let lifeNode: Node | undefined;
+  if (input.life) {
+    const pct = `${formatPercent(input.life.fraction)}%`;
+    if (input.life.style === "pie") {
+      const thickness = Math.round(pieSize * 0.115);
+      lifeNode = div(
+        { position: "relative", width: pieSize, height: pieSize, flexShrink: 0 },
+        img(svgUri(donutSvg(pieSize, thickness, input.life.fraction, theme)), pieSize, pieSize, { position: "absolute", left: 0, top: 0 }),
+        div(
+          { position: "absolute", left: 0, top: 0, width: pieSize, height: pieSize, alignItems: "center", justifyContent: "center", fontSize: px(29), fontWeight: 700, color: theme.text },
+          pct,
+        ),
+      );
+    } else {
+      const barH = px(16);
+      const fillW = Math.round(barW * Math.max(0, Math.min(1, input.life.fraction)));
+      const skull = px(40);
+      lifeNode = div(
+        { flexDirection: "column", width: barW, flexShrink: 0 },
+        div(
+          { alignItems: "center", justifyContent: "space-between", marginBottom: px(14) },
+          div({ fontSize: px(36), fontWeight: 700, color: theme.text }, pct),
+          img(svgUri(skullSvg(skull, theme.muted, theme.bg)), skull, skull),
+        ),
+        div(
+          { width: barW, height: barH, borderRadius: barH / 2, background: theme.track },
+          fillW > 0 && div({ width: Math.max(fillW, barH), height: barH, borderRadius: barH / 2, background: theme.accent }),
+        ),
+      );
+    }
+  }
+
+  const header = div(
+    { alignItems: "center", justifyContent: "space-between", width: boxW, height: headerH, paddingBottom: px(30) },
+    titleBlock,
+    lifeNode,
   );
 
   const renderRow = (it: TaskItem): Node => {

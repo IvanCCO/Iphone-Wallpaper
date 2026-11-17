@@ -27,6 +27,8 @@ Autenticação: `Authorization: Bearer <API_TOKEN>` (preferido) ou `?key=<API_TO
 | `tz` | `America/Sao_Paulo` | fuso IANA |
 | `safeTop` / `safeBottom` | `0.30` / `0.735` | faixa vertical (fração da altura) onde o conteúdo é desenhado |
 | `marginX` | `0.125` | margem lateral de cada lado (fração da largura) |
+| `life` | `1` | `0` desliga o gráfico de vida |
+| `lifeStyle` | do JSON | `pie` (rosca com % dentro) ou `bar` (barra com caveira) |
 | `guides` | `0` | `1` desenha as zonas do sistema (calibração) |
 
 Erros são JSON `{ error: { code, message }, requestId }` e nunca contêm títulos de tarefas. Parâmetro inválido → 400, sem token → 401, falha do Notion → 502/503/504.
@@ -50,7 +52,7 @@ Gere o `API_TOKEN` com `openssl rand -hex 32`.
 
 ## Configuração
 
-Só **3 variáveis de ambiente** (segredos), no `.env` local e na Vercel: `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID`.
+Variáveis de ambiente (no `.env` local e na Vercel): `API_TOKEN`, `NOTION_TOKEN`, `NOTION_DATABASE_ID` e, opcional, `BIRTH_DATE`.
 Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O arquivo é validado ao iniciar; chaves desconhecidas dão erro (pega typos), e todos os campos são opcionais.
 
 ```jsonc
@@ -63,6 +65,7 @@ Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O a
   },
   "dateFilter": "empty",   // "empty" = só tarefas sem data; "any" = todas
   "sortBy": "Tags",        // ordena a consulta por esta propriedade
+  "lifeProgress": { "enabled": true, "lifespanYears": 84, "style": "pie" },  // style: "pie" | "bar"
   "cacheTtlSeconds": 120,
   "image": { "timezone": "America/Sao_Paulo", "safeTop": 0.30, "safeBottom": 0.735, "marginX": 0.125, "scale": 2 }
 }
@@ -146,6 +149,12 @@ scripts/              embed-fonts (gera fonte base64), preview (PNG local)
 Novo grupo de endpoints: crie `src/routes/<grupo>/index.ts` e monte com `app.route("/<grupo>", ...)` em `src/create-app.ts`.
 Para exigir token no grupo, reutilize `requireToken` de `src/lib/auth.ts`.
 
+## Progresso de vida
+
+Ao lado direito de "Tasks" aparece quanto da vida já passou: do nascimento até o aniversário de `lifeProgress.lifespanYears` anos (padrão 84; o dia exato da morte é desconhecido). Em `pie` é uma rosca (roxo escuro sobre trilho neutro) com o `%` dentro; em `bar` é uma barra com uma caveira desenhada em vetor. O número usa duas casas (`22.33%`), é recalculado a cada requisição (dias civis no fuso configurado + fração do dia) e muda cerca de a cada 3 dias.
+
+A **data de nascimento é dado pessoal**: vem só da variável `BIRTH_DATE` (`AAAA-MM-DD`), nunca do JSON (o repositório é público). O `pnpm verify` bloqueia o push se o valor aparecer em algum arquivo versionado. Sem `BIRTH_DATE` (ou inválida) o gráfico simplesmente não aparece e o wallpaper segue funcionando; o log registra apenas o estilo ou o motivo, nunca a data.
+
 ## Simulador da Tela de Bloqueio (sem deploy)
 
 Usa o **mesmo renderizador da produção** e o `config/notion.json`, e monta uma tela de bloqueio simulada (zoom do iOS de ~14%, relógio, widgets e botões nas posições medidas num iPhone 16). Serve para calibrar sem publicar:
@@ -155,6 +164,7 @@ pnpm simulate                      # dados fictícios, sem Notion  -> out/simula
 pnpm simulate --live               # tarefas reais do Notion (usa o .env)
 pnpm simulate --safeTop=0.28 --marginX=0.13 --zoom=1.14 --theme=light --guides
 pnpm simulate --no-system          # só o papel de parede com o zoom, sem relógio/widgets
+pnpm simulate --life=bar --birth=AAAA-03-09   # estilo do gráfico de vida e data (sem --birth usa BIRTH_DATE do .env ou uma data fictícia)
 ```
 
 Gera `out/simulator.png` (tela simulada) e `out/wallpaper.png` (a imagem exata que o endpoint devolveria) e imprime um relatório com a faixa ocupada (% da altura) e avisos se o conteúdo invadir o relógio, os widgets ou encostar na borda.

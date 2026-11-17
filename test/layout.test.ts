@@ -66,3 +66,26 @@ describe("cabeçalho simples", () => {
     expect(text).not.toContain("À Fazer  ·");
   });
 });
+
+describe("gráfico de vida", () => {
+  const sel = selectTasks(sampleTasks, { view: "pending", now: NOW, tz: TZ });
+  const render = (life?: { fraction: number; style: "pie" | "bar" }) => JSON.stringify(buildLayout({ ...base, selection: sel, life }).root);
+
+  it("pie mostra o percentual dentro e usa imagem de rosca", () => {
+    const t = render({ fraction: 0.2233, style: "pie" });
+    expect(t).toContain("22.33%");
+    expect(t).toContain("data:image/svg+xml;base64,");
+  });
+
+  it("bar mostra o percentual e a caveira", () => {
+    const t = render({ fraction: 0.5, style: "bar" });
+    expect(t).toContain("50.00%");
+    expect(Buffer.from(t.match(/base64,([A-Za-z0-9+/=]+)/)![1]!, "base64").toString()).toContain("<svg");
+  });
+
+  it("sem life não há gráfico", () => {
+    expect(render()).not.toContain("%\"");
+    expect(render()).not.toContain("data:image/svg+xml");
+  });
+});
+

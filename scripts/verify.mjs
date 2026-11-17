@@ -53,7 +53,7 @@ await step("sem segredos nos arquivos versionados", () => {
   const secrets = [];
   if (existsSync(".env")) {
     for (const line of readFileSync(".env", "utf8").split("\n")) {
-      const m = line.match(/^(API_TOKENS?|NOTION_TOKEN)=(.{8,})$/);
+      const m = line.match(/^(API_TOKENS?|NOTION_TOKEN|BIRTH_DATE)=(.{8,})$/);
       if (m) secrets.push(m[2].replace(/^["']|["']$/g, ""));
     }
   }

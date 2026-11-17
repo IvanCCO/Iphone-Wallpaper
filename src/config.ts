@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidCivilDate } from "./domain/life.js";
 import { configError } from "./errors.js";
 import type { Priority } from "./domain/tasks.js";
 
@@ -92,6 +93,14 @@ const fileSchema = z.strictObject({
   dateFilter: z.enum(["any", "empty"]).default("any"),
   /** Propriedade usada para ordenar a consulta (ascendente). Padrão: a de vencimento. */
   sortBy: z.string().min(1).optional(),
+  /** Progresso de vida (gráfico ao lado do título). A data de nascimento vem de BIRTH_DATE (variável de ambiente). */
+  lifeProgress: z
+    .strictObject({
+      enabled: z.boolean().default(true),
+      lifespanYears: z.number().min(1).max(130).default(84),
+      style: z.enum(["pie", "bar"]).default("pie"),
+    })
+    .prefault({}),
   cacheTtlSeconds: z.number().min(0).default(120),
   timeoutMs: z.number().int().min(1000).default(8000),
   image: z
@@ -185,4 +194,25 @@ export interface ImageDefaults {
 
 export function loadImageDefaults(file: FileConfig): ImageDefaults {
   return { tz: file.image.timezone, safeTop: file.image.safeTop, safeBottom: file.image.safeBottom, marginX: file.image.marginX, scale: file.image.scale };
+}
+
+// ---------- Progresso de vida ----------
+
+export interface LifeConfig {
+  /** Data de nascimento YYYY-MM-DD (dado pessoal: só por variável de ambiente, nunca no repositório). */
+  birthDate: string;
+  lifespanYears: number;
+  style: "pie" | "bar";
+}
+
+/**
+ * Desligado (undefined) se `lifeProgress.enabled` é false ou se BIRTH_DATE não existe/é inválida:
+ * o wallpaper continua funcionando sem o gráfico. O motivo vai em `reason` para o log.
+ */
+export function loadLifeConfig(env: Env, file: FileConfig): { config?: LifeConfig; reason?: string } {
+  if (!file.lifeProgress.enabled) return { reason: "disabled" };
+  const birth = env.BIRTH_DATE?.trim();
+  if (!birth) return { reason: "no_birth_date" };
+  if (!isValidCivilDate(birth)) return { reason: "invalid_birth_date" };
+  return { config: { birthDate: birth, lifespanYears: file.lifeProgress.lifespanYears, style: file.lifeProgress.style } };
 }

@@ -18,6 +18,7 @@
   },
   "dateFilter": "empty",
   "sortBy": "Tags",
+  "lifeProgress": { "enabled": true, "lifespanYears": 84, "style": "pie" },
   "cacheTtlSeconds": 120,
   "image": {
     "timezone": "America/Sao_Paulo",

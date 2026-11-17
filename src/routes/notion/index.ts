@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../../app-env.js";
-import type { AuthConfig, ImageDefaults, NotionConfig } from "../../config.js";
+import type { AuthConfig, ImageDefaults, LifeConfig, NotionConfig } from "../../config.js";
+import { lifeProgress } from "../../domain/life.js";
 import { selectTasks, type Task } from "../../domain/tasks.js";
 import { TtlCache } from "../../lib/cache.js";
 import { requireToken } from "../../lib/auth.js";
@@ -12,6 +13,8 @@ export interface NotionRouteDeps {
   getAuth: () => AuthConfig;
   getNotion: () => NotionConfig;
   getImageDefaults: () => ImageDefaults;
+  /** Config do gráfico de vida; `config` ausente = desligado (com `reason` para o log). */
+  getLife: () => { config?: LifeConfig; reason?: string };
   source: TaskSource;
   now: () => Date;
 }
@@ -44,6 +47,10 @@ export function notionRoutes(deps: NotionRouteDeps): Hono<AppEnv> {
     const notionMs = Math.round(performance.now() - t0);
 
     const now = deps.now();
+    const lifeCfg = params.life ? deps.getLife() : { reason: "param_off" };
+    const life = lifeCfg.config
+      ? { fraction: lifeProgress(lifeCfg.config.birthDate, lifeCfg.config.lifespanYears, now, params.tz), style: params.lifeStyle ?? lifeCfg.config.style }
+      : undefined;
     const selection = selectTasks(snap.tasks, { view: params.view, priorities: params.priorities, now, tz: params.tz });
 
     const t1 = performance.now();
@@ -60,6 +67,7 @@ export function notionRoutes(deps: NotionRouteDeps): Hono<AppEnv> {
       safeBottom: params.safeBottom,
       marginX: params.marginX,
       scale: params.scale,
+      life,
       guides: params.guides,
     });
 
@@ -68,6 +76,7 @@ export function notionRoutes(deps: NotionRouteDeps): Hono<AppEnv> {
       notionMs,
       renderMs: Math.round(performance.now() - t1),
       view: params.view,
+      life: life ? life.style : (lifeCfg.reason ?? null),
       tasksTotal: snap.tasks.length,
       rowsShown: layout.rowsShown,
       rowsHidden: layout.rowsHidden,

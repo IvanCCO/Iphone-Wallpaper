@@ -4,6 +4,8 @@
 //   pnpm simulate --live          busca as tarefas reais do Notion (usa o .env)
 //   pnpm simulate --zoom=1.14     zoom que o iOS aplica ao papel de parede (calibrado no print do iPhone 16)
 //   pnpm simulate --safeTop=0.28 --safeBottom=0.74 --marginX=0.13 --theme=light --guides
+//   pnpm simulate --life=bar      gráfico de vida em barra (padrão: o de config/notion.json; --life=off desliga)
+//   pnpm simulate --birth=AAAA-03-09   data de nascimento (padrão: BIRTH_DATE do .env; sem ela usa uma data FICTÍCIA)
 //   pnpm simulate --no-system     mostra só o papel de parede (com o zoom), sem relógio/widgets
 //
 // Saídas: out/simulator.png (tela simulada) e out/wallpaper.png (a imagem exata que o endpoint devolveria).
@@ -11,7 +13,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import rawFileConfig from "../config/notion.json" with { type: "json" };
-import { loadImageDefaults, loadNotionConfig, parseFileConfig } from "../src/config.js";
+import { loadImageDefaults, loadLifeConfig, loadNotionConfig, parseFileConfig } from "../src/config.js";
+import { formatPercent, isValidCivilDate, lifeProgress } from "../src/domain/life.js";
 import { dayKeyInTz, selectTasks, type Task } from "../src/domain/tasks.js";
 import { createNotionTaskSource } from "../src/notion/client.js";
 import { getFonts, renderTasksPng } from "../src/render/png.js";
@@ -54,10 +57,24 @@ if (args.has("live")) {
 }
 const selection = selectTasks(tasks, { view: "pending", now, tz });
 
+// ---------- progresso de vida ----------
+const lifeArg = args.get("life");
+const birthArg = args.get("birth");
+if (birthArg && !isValidCivilDate(birthArg)) throw new Error("--birth deve ser uma data válida AAAA-MM-DD");
+const usingFakeBirth = !birthArg && !process.env.BIRTH_DATE;
+const lifeLoaded = loadLifeConfig({ BIRTH_DATE: birthArg ?? process.env.BIRTH_DATE ?? "2000-03-09" }, file);
+let life: { fraction: number; style: "pie" | "bar" } | undefined;
+if (lifeArg !== "off" && lifeLoaded.config) {
+  life = {
+    fraction: lifeProgress(lifeLoaded.config.birthDate, lifeLoaded.config.lifespanYears, now, tz),
+    style: lifeArg === "bar" || lifeArg === "pie" ? lifeArg : lifeLoaded.config.style,
+  };
+}
+
 // ---------- papel de parede (exatamente o que o endpoint devolve) ----------
 const { png: wallpaper, layout } = await renderTasksPng({
   selection, width: W, height: H, theme, tz, now, fetchedAt: now, limit: 8,
-  safeTop, safeBottom, marginX, guides: args.has("guides"), scale,
+  safeTop, safeBottom, marginX, life, guides: args.has("guides"), scale,
 });
 
 // ---------- tela de bloqueio simulada ----------
@@ -122,6 +139,7 @@ const CLOCK_BOTTOM = 0.25; // do print: fim do relógio
 const WIDGETS_TOP = 0.79; // do print: início dos widgets
 const used = layout.rowsShown;
 console.log(`Fonte das tarefas: ${args.has("live") ? "Notion (ao vivo)" : "dados fictícios"} | ${selection.counts.total} tasks, ${used} visíveis${layout.rowsHidden ? `, +${layout.rowsHidden} ocultas` : ""}`);
+if (life) console.log(`Vida: ${formatPercent(life.fraction)}% (${life.style})${usingFakeBirth ? " | data de nascimento FICTÍCIA: use --birth=AAAA-MM-DD ou BIRTH_DATE no .env" : ""}`);
 console.log(`Zoom do iOS: ${zoom} | imagem ${W * scale}×${H * scale}`);
 console.log(`Conteúdo na tela: ${(cTop * 100).toFixed(1)}% → ${(cBottom * 100).toFixed(1)}% da altura | margem esquerda ${left.toFixed(1)}% da largura`);
 if (left < 4) console.log("⚠ margem lateral pequena: o texto pode encostar na borda (aumente marginX).");

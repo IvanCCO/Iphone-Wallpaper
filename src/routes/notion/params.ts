@@ -16,6 +16,9 @@ export interface TaskImageParams {
   safeBottom: number;
   marginX: number;
   scale: number;
+  /** false desliga o gráfico de vida; lifeStyle sobrescreve o estilo do config. */
+  life: boolean;
+  lifeStyle?: "pie" | "bar";
   guides: boolean;
 }
 
@@ -50,6 +53,8 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     safeBottom: z.coerce.number().min(0.5).max(0.95).default(d.safeBottom),
     marginX: z.coerce.number().min(0.03).max(0.3).default(d.marginX),
     scale: z.coerce.number().min(1).max(3).default(d.scale),
+    life: z.enum(["0", "1"]).default("1"),
+    lifeStyle: z.enum(["pie", "bar"]).optional(),
     guides: z.enum(["0", "1"]).default("0"),
   });
 
@@ -74,6 +79,8 @@ export function parseTaskImageParams(query: Record<string, string>, d: ImageDefa
     safeBottom: p.safeBottom,
     marginX: p.marginX,
     scale: p.scale,
+    life: p.life === "1",
+    lifeStyle: p.lifeStyle,
     guides: p.guides === "1",
   };
 }
