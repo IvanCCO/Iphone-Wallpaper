@@ -98,6 +98,18 @@ O app é detectado pelo zero-config do Hono: `src/index.ts` exporta `default` o 
 4. Calibração: abra `...&guides=1`, veja onde relógio/widgets/lanterna caem e ajuste `safeTop`/`safeBottom`.
    O padrão (`0.4`–`0.84`) assume relógio grande + widgets; no iOS 26 o relógio pode ser mais alto.
 
+## Validação antes do push
+
+`pnpm install` ativa o hook `.githooks/pre-push` (via `prepare`, `git config core.hooksPath .githooks`), que roda `pnpm verify`:
+
+1. `engines.node` com major fixa (`22.x`) e `packageManager` definido (evita upgrade automático de Node na Vercel);
+2. `pnpm-lock.yaml` em sincronia com o `package.json` (a Vercel usa `--frozen-lockfile`);
+3. nenhum `.env` versionado nem token do Notion/`API_TOKEN` nos arquivos;
+4. `tsc --noEmit` e `vitest`;
+5. bundle de `src/index.ts` com esbuild (como a Vercel) e `GET /health` no bundle.
+
+Se algo falhar o push é bloqueado. Emergência: `SKIP_VERIFY=1 git push` (ou `--no-verify`). Rodar à mão: `pnpm verify`.
+
 ## Segurança e privacidade
 
 - Segredos só em variáveis de ambiente; o código falha fechado sem `API_TOKEN` (HTTP 500, nunca libera).

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Valida o projeto antes de qualquer push (o que a Vercel faria no deploy).
+# Para pular em emergência: SKIP_VERIFY=1 git push   (ou git push --no-verify)
+[ "$SKIP_VERIFY" = "1" ] && { echo "pre-push: validação pulada (SKIP_VERIFY=1)"; exit 0; }
+cd "$(git rev-parse --show-toplevel)" && exec node scripts/verify.mjs
