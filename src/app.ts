@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { AppEnv } from "./app-env.js";
-import rawFileConfig from "../config/notion.json";
+import rawFileConfig from "../config/notion.json" with { type: "json" };
 import { loadAuthConfig, loadImageDefaults, loadNotionConfig, parseFileConfig, type Env } from "./config.js";
 import { AppError } from "./errors.js";
 import { consoleLogger, type Logger } from "./lib/logger.js";
