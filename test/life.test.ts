@@ -47,7 +47,7 @@ describe("lifeProgress", () => {
 describe("loadLifeConfig", () => {
   const file = parseFileConfig({});
   it("ligado com BIRTH_DATE válida", () => {
-    expect(loadLifeConfig({ BIRTH_DATE: BIRTH }, file).config).toEqual({ birthDate: BIRTH, lifespanYears: 84, style: "pie" });
+    expect(loadLifeConfig({ BIRTH_DATE: BIRTH }, file).config).toEqual({ birthDate: BIRTH, lifespanYears: 84, style: "bar" });
   });
   it("desligado sem data, com data inválida ou enabled=false (nunca derruba o wallpaper)", () => {
     expect(loadLifeConfig({}, file)).toEqual({ reason: "no_birth_date" });

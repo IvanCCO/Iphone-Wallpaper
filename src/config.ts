@@ -98,7 +98,7 @@ const fileSchema = z.strictObject({
     .strictObject({
       enabled: z.boolean().default(true),
       lifespanYears: z.number().min(1).max(130).default(84),
-      style: z.enum(["pie", "bar"]).default("pie"),
+      style: z.enum(["pie", "bar"]).default("bar"),
     })
     .prefault({}),
   cacheTtlSeconds: z.number().min(0).default(120),

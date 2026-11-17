@@ -28,7 +28,7 @@ Autenticação: `Authorization: Bearer <API_TOKEN>` (preferido) ou `?key=<API_TO
 | `safeTop` / `safeBottom` | `0.30` / `0.735` | faixa vertical (fração da altura) onde o conteúdo é desenhado |
 | `marginX` | `0.125` | margem lateral de cada lado (fração da largura) |
 | `life` | `1` | `0` desliga o gráfico de vida |
-| `lifeStyle` | do JSON | `pie` (rosca com % dentro) ou `bar` (barra com caveira) |
+| `lifeStyle` | do JSON (`bar`) | `bar` (barra com caveira) ou `pie` (rosca com % dentro) |
 | `guides` | `0` | `1` desenha as zonas do sistema (calibração) |
 
 Erros são JSON `{ error: { code, message }, requestId }` e nunca contêm títulos de tarefas. Parâmetro inválido → 400, sem token → 401, falha do Notion → 502/503/504.
@@ -65,7 +65,7 @@ Todo o resto fica em [`config/notion.json`](config/notion.json), versionado. O a
   },
   "dateFilter": "empty",   // "empty" = só tarefas sem data; "any" = todas
   "sortBy": "Tags",        // ordena a consulta por esta propriedade
-  "lifeProgress": { "enabled": true, "lifespanYears": 84, "style": "pie" },  // style: "pie" | "bar"
+  "lifeProgress": { "enabled": true, "lifespanYears": 84, "style": "bar" },  // style: "bar" | "pie"
   "cacheTtlSeconds": 120,
   "image": { "timezone": "America/Sao_Paulo", "safeTop": 0.30, "safeBottom": 0.735, "marginX": 0.125, "scale": 2 }
 }
@@ -151,7 +151,7 @@ Para exigir token no grupo, reutilize `requireToken` de `src/lib/auth.ts`.
 
 ## Progresso de vida
 
-Ao lado direito de "Tasks" aparece quanto da vida já passou: do nascimento até o aniversário de `lifeProgress.lifespanYears` anos (padrão 84; o dia exato da morte é desconhecido). Em `pie` é uma rosca (roxo escuro sobre trilho neutro) com o `%` dentro; em `bar` é uma barra com uma caveira desenhada em vetor. O número usa duas casas (`22.33%`), é recalculado a cada requisição (dias civis no fuso configurado + fração do dia) e muda cerca de a cada 3 dias.
+Ao lado direito de "Tasks" aparece quanto da vida já passou: do nascimento até o aniversário de `lifeProgress.lifespanYears` anos (padrão 84; o dia exato da morte é desconhecido). O padrão é `bar`: barra roxa sobre trilho neutro com o `%` e uma caveira desenhada em vetor. A alternativa `pie` é uma rosca com o `%` dentro. O número usa duas casas (`22.33%`), é recalculado a cada requisição (dias civis no fuso configurado + fração do dia) e muda cerca de a cada 3 dias.
 
 A **data de nascimento é dado pessoal**: vem só da variável `BIRTH_DATE` (`AAAA-MM-DD`), nunca do JSON (o repositório é público). O `pnpm verify` bloqueia o push se o valor aparecer em algum arquivo versionado. Sem `BIRTH_DATE` (ou inválida) o gráfico simplesmente não aparece e o wallpaper segue funcionando; o log registra apenas o estilo ou o motivo, nunca a data.
 

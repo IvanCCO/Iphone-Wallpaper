@@ -147,15 +147,15 @@ describe("gráfico de vida na rota", () => {
     return { res, log: logs.find((l) => l.path === "/notion/tasks.png") };
   };
 
-  it("com BIRTH_DATE desenha o gráfico (pie por padrão) e loga só o estilo, nunca a data", async () => {
+  it("com BIRTH_DATE desenha o gráfico (bar por padrão) e loga só o estilo, nunca a data", async () => {
     const { res, log } = await get(withBirth);
     expect(res.status).toBe(200);
-    expect(log?.life).toBe("pie");
+    expect(log?.life).toBe("bar");
     expect(JSON.stringify(log)).not.toContain("2000-03-09");
   });
 
-  it("?lifeStyle=bar troca o estilo; ?life=0 desliga", async () => {
-    expect((await get(withBirth, "&lifeStyle=bar")).log?.life).toBe("bar");
+  it("?lifeStyle=pie troca o estilo; ?life=0 desliga", async () => {
+    expect((await get(withBirth, "&lifeStyle=pie")).log?.life).toBe("pie");
     expect((await get(withBirth, "&life=0")).log?.life).toBe("param_off");
   });
 
