@@ -16,6 +16,12 @@ export interface AppOptions {
   logger?: Logger;
 }
 
+/** Apenas o que usamos de uma resposta HTTP. */
+interface ResponseLike {
+  status: number;
+  headers: { set(name: string, value: string): void; has(name: string): boolean };
+}
+
 /** Memoiza só sucessos: se faltar variável de ambiente, a próxima chamada tenta de novo. */
 function lazy<T>(load: () => T): () => T {
   let value: { v: T } | undefined;
@@ -44,16 +50,19 @@ export function createApp(opts: AppOptions = {}): Hono<AppEnv> {
     c.set("requestId", crypto.randomUUID());
     c.set("logFields", {});
     await next();
-    c.res.headers.set("X-Request-Id", c.get("requestId"));
-    c.res.headers.set("X-Content-Type-Options", "nosniff");
-    c.res.headers.set("X-Robots-Tag", "noindex, nofollow");
-    c.res.headers.set("Referrer-Policy", "no-referrer");
-    if (!c.res.headers.has("Cache-Control")) c.res.headers.set("Cache-Control", "no-store");
+    // Tipo estrutural local: não depende de como o ambiente de build resolve o `Response` global
+    // (o typecheck da Vercel roda com um tsconfig temporário e já falhou aqui).
+    const res = c.res as unknown as ResponseLike;
+    res.headers.set("X-Request-Id", c.get("requestId"));
+    res.headers.set("X-Content-Type-Options", "nosniff");
+    res.headers.set("X-Robots-Tag", "noindex, nofollow");
+    res.headers.set("Referrer-Policy", "no-referrer");
+    if (!res.headers.has("Cache-Control")) res.headers.set("Cache-Control", "no-store");
     logger.info("request", {
       requestId: c.get("requestId"),
       method: c.req.method,
       path: c.req.path,
-      status: c.res.status,
+      status: res.status,
       ms: Math.round(performance.now() - started),
       ...c.get("logFields"),
     });
